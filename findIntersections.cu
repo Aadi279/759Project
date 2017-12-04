@@ -71,7 +71,7 @@ __device__ void get_intersection(float x0, float x1, float y0, float y1, float z
     //TODO: Put this check outside and handle by putting both points into the segment list. This case represents a planar line segment
     float denom = (z1 - z0);
 
-    printf("z0: %f, z1: %f\n", z0, z1);
+//    printf("z0: %f, z1: %f\n", z0, z1);
 
     if(denom == 0) {
         x_r = nullptr;
@@ -112,9 +112,18 @@ __global__ void calculateIntersections(float* xs, float* ys, float* zs, int* lay
         float z2 = zs[stri + 2];
         float bottomLayer = floor(min(min(z0, z1), z2) / lH);
 
+
+        int localStartIndexInSegments;
+        if(gtid < 1) {
+            localStartIndexInSegments = 0;
+        } else {
+            localStartIndexInSegments = startIndexInSegments[gtid-1]*2;
+        }
+
+
         // Iterate through layers
         int layer; float zp;
-        float* x_r = (float*)malloc(sizeof(float));
+        float* x_r = (float*)malloc(sizeof(float)); //TODO: Put this in shared memory to boost performance
         float* y_r = (float*)malloc(sizeof(float));
         int intersectionsFound;
 
@@ -128,22 +137,30 @@ __global__ void calculateIntersections(float* xs, float* ys, float* zs, int* lay
 
             get_intersection(x0, x1, y0, y1, z0, z1, zp, x_r, y_r);
             if(x_r != nullptr){
-                seg_x[startIndexInSegments[gtid]*2] = *x_r;
-                seg_y[startIndexInSegments[gtid]*2] = *y_r;
+                printf("131\n");
+                seg_x[localStartIndexInSegments] = *x_r;
+                seg_y[localStartIndexInSegments] = *y_r;
+                seg_l[localStartIndexInSegments] = layer;
                 intersectionsFound++;
             }
 
             get_intersection(x1, x2, y1, y2, z1, z2, zp, x_r, y_r);
             if(x_r != nullptr){
-                seg_x[startIndexInSegments[gtid]*2+intersectionsFound] = *x_r;
-                seg_y[startIndexInSegments[gtid]*2+intersectionsFound] = *y_r;
+                printf("139\n");
+                seg_x[localStartIndexInSegments+intersectionsFound] = *x_r;
+                seg_y[localStartIndexInSegments+intersectionsFound] = *y_r;
+                seg_l[localStartIndexInSegments+intersectionsFound] = layer;
                 intersectionsFound++;
             }
 
             get_intersection(x2, x0, y2, y0, z2, z0, zp, x_r, y_r);
             if(x_r != nullptr){
-                seg_x[startIndexInSegments[gtid]*2+intersectionsFound] = *x_r;
-                seg_y[startIndexInSegments[gtid]*2+intersectionsFound] = *y_r;
+                printf("148\n");
+                printf("*x_r:%f\n", *x_r);
+                printf("startIndexInSegments[gtid]*2: %d\n", startIndexInSegments[gtid]*2);
+                seg_x[localStartIndexInSegments+intersectionsFound] = *x_r;
+                seg_y[localStartIndexInSegments+intersectionsFound] = *y_r;
+                seg_l[localStartIndexInSegments+intersectionsFound] = layer;
                 intersectionsFound++;
             }
             // TODO: Handle boundary cases for planar triangles and tangentially intersecting triangles
@@ -171,15 +188,15 @@ int main(int argc, char* argv[]) {
 
     const int n = 1;
     const int N = n*3;
-    const float layerHeight = .5;
+    const float layerHeight = 1.;
 
 
 //    float x[N] = {0.,  0., 1., 0., 1., 1., 0., 0., 0.};
 //    float y[N] = {0.,  0., 0., 0., 0., 0., 0., 1., 1.};
 //    float z[N] = {.25, 1.25, 1.25, 0.25, 0.25, 1.25, 1.25, 2.6, 2.6};
-    float x[N] = {1.,  2.5, 3.};
-    float y[N] = {1.,  2.5, 3.};
-    float z[N] = {.25, 1.25, 1.25};
+    float x[N] = {.5,  .5, .5};
+    float y[N] = {1.5, 2.5, 2.5};
+    float z[N] = {.5,   .5, 1.5};
 
 
     // Timing things
@@ -226,8 +243,9 @@ int main(int argc, char* argv[]) {
 
     calculateIntersections<<<2, 8>>>(x_p, y_p, z_p, layersInTris_p, intersectionSegmentsIndexStart_p, iscx_p, iscy_p, iscl_p, layerHeight, n);
 
-//    print_vector("iscx", iscx);
-//    print_vector("iscy", iscy);
+    print_vector("iscx", iscx);
+    print_vector("iscy", iscy);
+    print_vector("iscl", iscl);
 
 
 
