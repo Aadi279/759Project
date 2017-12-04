@@ -65,11 +65,11 @@
       <file leaf-file-name="findIntersections.cu" pinned="false" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/findIntersections.cu">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="247">
-              <caret line="118" column="0" lean-forward="false" selection-start-line="118" selection-start-column="0" selection-end-line="118" selection-end-column="0" />
+            <state relative-caret-position="433">
+              <caret line="224" column="77" lean-forward="false" selection-start-line="224" selection-start-column="77" selection-end-line="224" selection-end-column="77" />
               <folding>
-                <element signature="e#4952#4969#0" expanded="true" />
-                <element signature="e#4895#5240#0" expanded="false" />
+                <element signature="e#4687#4704#0" expanded="true" />
+                <element signature="e#4630#4975#0" expanded="false" />
               </folding>
             </state>
           </provider>
@@ -110,6 +110,7 @@
       <find>printf(&quot;z</find>
       <find>total</find>
       <find>layersInTri</find>
+      <find>137</find>
     </findStrings>
     <replaceStrings>
       <replace>$1</replace>
@@ -195,17 +196,17 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1512333543491</updated>
-      <workItem from="1512340298715" duration="14604000" />
+      <workItem from="1512340298715" duration="15094000" />
     </task>
     <servers />
   </component>
   <component name="TimeTrackingManager">
-    <option name="totallyTimeSpent" value="14604000" />
+    <option name="totallyTimeSpent" value="15094000" />
   </component>
   <component name="ToolWindowManager">
-    <frame x="0" y="22" width="895" height="982" extended-state="0" />
+    <frame x="0" y="22" width="1080" height="982" extended-state="0" />
     <layout>
-      <window_info id="Project" active="false" anchor="left" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="true" show_stripe_button="true" weight="0.19695194" sideWeight="0.5" order="0" side_tool="false" content_ui="combo" />
+      <window_info id="Project" active="false" anchor="left" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="true" show_stripe_button="true" weight="0.1618497" sideWeight="0.5" order="0" side_tool="false" content_ui="combo" />
       <window_info id="TODO" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="6" side_tool="false" content_ui="tabs" />
       <window_info id="Event Log" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="7" side_tool="true" content_ui="tabs" />
       <window_info id="Version Control" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.32919955" sideWeight="0.5" order="7" side_tool="false" content_ui="tabs" />
@@ -312,11 +313,11 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/findIntersections.cu">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="247">
-          <caret line="118" column="0" lean-forward="false" selection-start-line="118" selection-start-column="0" selection-end-line="118" selection-end-column="0" />
+        <state relative-caret-position="433">
+          <caret line="224" column="77" lean-forward="false" selection-start-line="224" selection-start-column="77" selection-end-line="224" selection-end-column="77" />
           <folding>
-            <element signature="e#4952#4969#0" expanded="true" />
-            <element signature="e#4895#5240#0" expanded="false" />
+            <element signature="e#4687#4704#0" expanded="true" />
+            <element signature="e#4630#4975#0" expanded="false" />
           </folding>
         </state>
       </provider>

@@ -99,6 +99,7 @@ __global__ void calculateIntersections(float* xs, float* ys, float* zs, int* lay
     int gtid = blockIdx.x * blockDim.x + threadIdx.x;
 
     if(gtid < n) {
+        printf("TriangleIteration\n");
         int stri = gtid*3;
         float x0 = xs[stri];
         float y0 = ys[stri];
@@ -117,15 +118,13 @@ __global__ void calculateIntersections(float* xs, float* ys, float* zs, int* lay
         float* y_r = (float*)malloc(sizeof(float));
         int intersectionsFound;
 
-        printf("layersInTri[gtid]:%d\n", layersInTri[gtid]);
+//        printf("layersInTri[gtid]:%d\n", layersInTri[gtid]);
         for(int i = 0; i < layersInTri[gtid]; i++) {
+            printf("LayerIteration\n");
             layer = bottomLayer + i;
             zp = layer * lH;
 
             intersectionsFound = 0;
-
-            printf("gtid:%d\n", gtid);
-            printf("zp: %f\n",zp);
 
             get_intersection(x0, x1, y0, y1, z0, z1, zp, x_r, y_r);
             if(x_r != nullptr){
@@ -135,7 +134,6 @@ __global__ void calculateIntersections(float* xs, float* ys, float* zs, int* lay
             }
 
             get_intersection(x1, x2, y1, y2, z1, z2, zp, x_r, y_r);
-            printf("137\n");
             if(x_r != nullptr){
                 seg_x[startIndexInSegments[gtid]*2+intersectionsFound] = *x_r;
                 seg_y[startIndexInSegments[gtid]*2+intersectionsFound] = *y_r;
@@ -179,8 +177,8 @@ int main(int argc, char* argv[]) {
 //    float x[N] = {0.,  0., 1., 0., 1., 1., 0., 0., 0.};
 //    float y[N] = {0.,  0., 0., 0., 0., 0., 0., 1., 1.};
 //    float z[N] = {.25, 1.25, 1.25, 0.25, 0.25, 1.25, 1.25, 2.6, 2.6};
-    float x[N] = {0.,  0., 1.};
-    float y[N] = {0.,  0., 0.};
+    float x[N] = {1.,  2.5, 3.};
+    float y[N] = {1.,  2.5, 3.};
     float z[N] = {.25, 1.25, 1.25};
 
 
@@ -222,8 +220,8 @@ int main(int argc, char* argv[]) {
     float* iscx_p = thrust::raw_pointer_cast( &iscx[0] );
     float* iscy_p = thrust::raw_pointer_cast( &iscy[0] );
     float* iscl_p = thrust::raw_pointer_cast( &iscl[0] );
-    float* x_p = thrust::raw_pointer_cast( &x[0] );
-    float* y_p = thrust::raw_pointer_cast( &y[0] );
+    float* x_p = thrust::raw_pointer_cast( &dx[0] );
+    float* y_p = thrust::raw_pointer_cast( &dy[0] );
     int* intersectionSegmentsIndexStart_p = thrust::raw_pointer_cast( &intersectionSegmentsIndexStart[0]);
 
     calculateIntersections<<<2, 8>>>(x_p, y_p, z_p, layersInTris_p, intersectionSegmentsIndexStart_p, iscx_p, iscy_p, iscl_p, layerHeight, n);
