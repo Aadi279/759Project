@@ -23,6 +23,7 @@ def sortContourForLayer(self, inp, outp, blockSums, N):
     # Take our list of triangles
     # Generate an array of heights (custom kernel) on each triangle
     # Generate intersectionSegmentsIndexStart as an additive inclusive reduction over heights array
+    # Allocate intersections array
     # (custom kernel) For each triangle, calculate intersection with each layer, place in intersections array, place layer in layers array
     # Sort the intersections array by layer
     # Count the instances of each layer in the layers array, store in `intersectionsPerLayer` vector

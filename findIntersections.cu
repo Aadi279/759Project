@@ -46,6 +46,14 @@ __global__ void layersInEachTriangle(float* zs, int* layersInTris, int numberOfT
     }
 }
 
+//__device__ float dot(float* xs, float* ys, float* zs, int i0, int i1) {
+//
+//}
+
+__global__ void calculateIntersections(float* xs, float* ys, float* zs, float* seg_x, float* seg_y, float* seg_l) {
+
+}
+
 // simple routine to print contents of a vector
 template <typename Vector>
 void print_vector(const std::string& name, const Vector& v)
@@ -60,14 +68,14 @@ int main(int argc, char* argv[]) {
 
     float time = 0.f;
 
-    const int n = 2;
+    const int n = 3;
     const int N = n*3;
     const float layerHeight = .5;
 
 
-    float x[N] = {0., 0., 1., 0., 1., 1.};
-    float y[N] = {0., 0., 0., 0., 0., 0.};
-    float z[N] = {0., 1., 2.499,0., 0., 2.5};
+    float x[N] = {0., 0., 1., 0., 1., 1., 0., 0., 0.};
+    float y[N] = {0., 0., 0., 0., 0., 0., 0., 1., 1.};
+    float z[N] = {0., 1., 1., 0., 0., 1., 1., 2.5, 2.5};
 
 
     // Timing things
@@ -91,6 +99,27 @@ int main(int argc, char* argv[]) {
     layersInEachTriangle<<<2, 8>>>(z_p, layersInTris_p, n, layerHeight);
 
     print_vector("layersInTris", layersInTris);
+
+    thrust::device_vector<int> intersectionSegmentsIndexStart(n, 0);
+    thrust::inclusive_scan(layersInTris.begin(), layersInTris.end(), intersectionSegmentsIndexStart.begin());
+
+    print_vector("layersInTris", intersectionSegmentsIndexStart);
+
+    int totalIntersections = intersectionSegmentsIndexStart[intersectionSegmentsIndexStart.size()-1];
+
+    printf("totalIntersections: %d", totalIntersections);
+
+    // Intersection segment coordinate arrays
+    thrust::device_vector<float> iscx(totalIntersections, 0);
+    thrust::device_vector<float> iscy(totalIntersections, 0);
+    thrust::device_vector<float> iscl(totalIntersections, 0);
+    float* iscx_p = thrust::raw_pointer_cast( &iscx[0] );
+    float* iscy_p = thrust::raw_pointer_cast( &iscy[0] );
+    float* iscl_p = thrust::raw_pointer_cast( &iscl[0] );
+    float* x_p = thrust::raw_pointer_cast( &x[0] );
+    float* y_p = thrust::raw_pointer_cast( &y[0] );
+
+    calculateIntersections<<<2, 8>>>(x_p, y_p, z_p, iscx_p, iscy_p, iscl_p);
 
 
 //    thrust::equal_to<int> binary_pred;
