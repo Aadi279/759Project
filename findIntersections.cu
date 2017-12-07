@@ -39,9 +39,11 @@ __global__ void layersInEachTriangle(float* zs, int* layersInTris, int numberOfT
     if(gtid < numberOfTris) {
         float z_max = max(max(z0, z1), z2);
         float z_min = min(min(z0, z1), z2);
-        layersContained = ceil(z_max/lH) - floor(z_min / lH);
-        if (layersContained*lH + z_min == z_max)
-            layersContained++;
+        printf("floor(z_max/lH): %f\n", floor(z_max/lH));
+        printf("ceil(z_min/lH): %f\n", ceil(z_min/lH));
+        layersContained = floor(z_max/lH) - ceil(z_min / lH) + 1;
+        //if (layersContained*lH + z_min == z_max)
+        //layersContained++;
         layersInTris[gtid] = layersContained;
     }
 
@@ -65,41 +67,46 @@ __global__ void layersInEachTriangle(float* zs, int* layersInTris, int numberOfT
  * @param y_r result of the intersection
  * @return
  */
-__device__ void get_intersection(float x0, float x1, float y0, float y1, float z0, float z1, float zp, float* x_r, float* y_r) {
+__device__ void get_intersection(float x0, float x1,
+                                 float y0, float y1,
+                                 float z0, float z1, float zp,
+                                 float* x_r, float* y_r,
+                                 bool* parallel,
+                                 bool* non_intersecting) {
 
+    printf("Getting intersection...\nx0:%f\nx1:%f\ny0:%f\ny1:%f\nz0:%f\nz1:%f\nzp:%f\n", x0, x1, y0, y1, z0, z1, zp);
 
     //TODO: Put this check outside and handle by putting both points into the segment list. This case represents a planar line segment
     float denom = (z1 - z0);
 
-//    printf("z0: %f, z1: %f\n", z0, z1);
+    *non_intersecting = false;
+    *parallel = false;
 
     if(denom == 0) {
-        x_r = nullptr;
-        y_r = nullptr;
+        *parallel = true;
         return;
     }
 
     float t = (zp - z0) / denom;
 
     if(t < 0 || t > 1) {
-//        printf("84\n");
-        x_r = nullptr;
-        y_r = nullptr;
+        *non_intersecting = true;
         return;
     }
 
-    printf("t: %f\n", t);
     *x_r = x0 + t * (x1 - x0);
     *y_r = y0 + t * (y1 - y0);
-    printf("Intersection of %f,%f,%f -> %f, %f, %f with z=%f: %f, %f\n", x0, y0, z0, x1, y1, z1, zp, *x_r, *y_r);
+    printf("t=%f, (x,y)=(%f,%f)", t, *x_r, *y_r);
+    //printf("Intersection of %f,%f,%f -> %f, %f, %f with z=%f: %f, %f\n", x0, y0, z0, x1, y1, z1, zp, *x_r, *y_r);
     return;
 }
 
 __global__ void calculateIntersections(float* xs, float* ys, float* zs, int* layersInTri, int* startIndexInSegments, float* seg_x, float* seg_y, float* seg_l, const float lH, const int n) {
     int gtid = blockIdx.x * blockDim.x + threadIdx.x;
 
+    //TODO: Needs an external loop for `triIndex` instead of using gtid directly
+    // Because we may have more tris than threads
     if(gtid < n) {
-        printf("TriangleIteration\n");
         int stri = gtid*3;
         float x0 = xs[stri];
         float y0 = ys[stri];
@@ -110,7 +117,8 @@ __global__ void calculateIntersections(float* xs, float* ys, float* zs, int* lay
         float x2 = xs[stri + 2];
         float y2 = ys[stri + 2];
         float z2 = zs[stri + 2];
-        float bottomLayer = floor(min(min(z0, z1), z2) / lH);
+        printf("OOOO: %d\n", ceil(min(min(z0, z1), z2) / lH));
+        int bottomLayer = ceil(min(min(z0, z1), z2) / lH);
 
 
         int localStartIndexInSegments;
@@ -125,39 +133,50 @@ __global__ void calculateIntersections(float* xs, float* ys, float* zs, int* lay
         int layer; float zp;
         float* x_r = (float*)malloc(sizeof(float)); //TODO: Put this in shared memory to boost performance
         float* y_r = (float*)malloc(sizeof(float));
+        bool* non_intersecting = (bool*)malloc(sizeof(float));
+        bool* parallel = (bool*)malloc(sizeof(float));
         int intersectionsFound;
 
 //        printf("layersInTri[gtid]:%d\n", layersInTri[gtid]);
         for(int i = 0; i < layersInTri[gtid]; i++) {
-            printf("LayerIteration\n");
+            //printf("LayerIteration\n");
             layer = bottomLayer + i;
             zp = layer * lH;
 
             intersectionsFound = 0;
 
-            get_intersection(x0, x1, y0, y1, z0, z1, zp, x_r, y_r);
-            if(x_r != nullptr){
-                printf("131\n");
+            if(layer == 1) {
+                printf("\nlayer 1...\n");
+                printf("i: %d\n", i);
+                printf("Bottom Layer: %d\n", bottomLayer);
+                //    printf("Layers in tri: %d\n", layersInTri[gtid]);
+            }
+
+            if(i==1) {
+                printf("\n at i=1...\n");
+                printf("layer=%d\n", layer);
+                printf("bottomLayer=%d\n", bottomLayer);
+                printf("gtid=%d\n", gtid);
+            }
+
+            get_intersection(x0, x1, y0, y1, z0, z1, zp, x_r, y_r, parallel, non_intersecting);
+            if(!(*non_intersecting)){
                 seg_x[localStartIndexInSegments] = *x_r;
                 seg_y[localStartIndexInSegments] = *y_r;
                 seg_l[localStartIndexInSegments] = layer;
                 intersectionsFound++;
             }
 
-            get_intersection(x1, x2, y1, y2, z1, z2, zp, x_r, y_r);
-            if(x_r != nullptr){
-                printf("139\n");
+            get_intersection(x1, x2, y1, y2, z1, z2, zp, x_r, y_r, parallel, non_intersecting);
+            if(!(*non_intersecting)){
                 seg_x[localStartIndexInSegments+intersectionsFound] = *x_r;
                 seg_y[localStartIndexInSegments+intersectionsFound] = *y_r;
                 seg_l[localStartIndexInSegments+intersectionsFound] = layer;
                 intersectionsFound++;
             }
 
-            get_intersection(x2, x0, y2, y0, z2, z0, zp, x_r, y_r);
-            if(x_r != nullptr){
-                printf("148\n");
-                printf("*x_r:%f\n", *x_r);
-                printf("startIndexInSegments[gtid]*2: %d\n", startIndexInSegments[gtid]*2);
+            get_intersection(x2, x0, y2, y0, z2, z0, zp, x_r, y_r, parallel, non_intersecting);
+            if(!(*non_intersecting)){
                 seg_x[localStartIndexInSegments+intersectionsFound] = *x_r;
                 seg_y[localStartIndexInSegments+intersectionsFound] = *y_r;
                 seg_l[localStartIndexInSegments+intersectionsFound] = layer;
@@ -195,8 +214,8 @@ int main(int argc, char* argv[]) {
 //    float y[N] = {0.,  0., 0., 0., 0., 0., 0., 1., 1.};
 //    float z[N] = {.25, 1.25, 1.25, 0.25, 0.25, 1.25, 1.25, 2.6, 2.6};
     float x[N] = {.5,  .5, .5};
-    float y[N] = {1.5, 2.5, 2.5};
-    float z[N] = {.5,   .5, 1.5};
+    float y[N] = {1.5, 2.5, 3.5};
+    float z[N] = {.5,   1.5, .5};
 
 
     // Timing things
