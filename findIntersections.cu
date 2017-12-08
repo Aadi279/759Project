@@ -39,8 +39,8 @@ __global__ void layersInEachTriangle(float* zs, int* layersInTris, int numberOfT
     if(gtid < numberOfTris) {
         float z_max = max(max(z0, z1), z2);
         float z_min = min(min(z0, z1), z2);
-        printf("floor(z_max/lH): %f\n", floor(z_max/lH));
-        printf("ceil(z_min/lH): %f\n", ceil(z_min/lH));
+        //printf("floor(z_max/lH): %f\n", floor(z_max/lH));
+        //printf("ceil(z_min/lH): %f\n", ceil(z_min/lH));
         layersContained = floor(z_max/lH) - ceil(z_min / lH) + 1;
         //if (layersContained*lH + z_min == z_max)
         //layersContained++;
@@ -74,7 +74,7 @@ __device__ void get_intersection(float x0, float x1,
                                  bool* parallel,
                                  bool* non_intersecting) {
 
-    printf("Getting intersection...\nx0:%f\nx1:%f\ny0:%f\ny1:%f\nz0:%f\nz1:%f\nzp:%f\n", x0, x1, y0, y1, z0, z1, zp);
+    //printf("Getting intersection...\nx0:%f\nx1:%f\ny0:%f\ny1:%f\nz0:%f\nz1:%f\nzp:%f\n", x0, x1, y0, y1, z0, z1, zp);
 
     //TODO: Put this check outside and handle by putting both points into the segment list. This case represents a planar line segment
     float denom = (z1 - z0);
@@ -96,8 +96,6 @@ __device__ void get_intersection(float x0, float x1,
 
     *x_r = x0 + t * (x1 - x0);
     *y_r = y0 + t * (y1 - y0);
-    printf("t=%f, (x,y)=(%f,%f)", t, *x_r, *y_r);
-    //printf("Intersection of %f,%f,%f -> %f, %f, %f with z=%f: %f, %f\n", x0, y0, z0, x1, y1, z1, zp, *x_r, *y_r);
     return;
 }
 
@@ -117,7 +115,6 @@ __global__ void calculateIntersections(float* xs, float* ys, float* zs, int* lay
         float x2 = xs[stri + 2];
         float y2 = ys[stri + 2];
         float z2 = zs[stri + 2];
-        printf("OOOO: %d\n", ceil(min(min(z0, z1), z2) / lH));
         int bottomLayer = ceil(min(min(z0, z1), z2) / lH);
 
 
@@ -137,51 +134,77 @@ __global__ void calculateIntersections(float* xs, float* ys, float* zs, int* lay
         bool* parallel = (bool*)malloc(sizeof(float));
         int intersectionsFound;
 
-//        printf("layersInTri[gtid]:%d\n", layersInTri[gtid]);
+        int segmentIndex;
         for(int i = 0; i < layersInTri[gtid]; i++) {
-            //printf("LayerIteration\n");
             layer = bottomLayer + i;
             zp = layer * lH;
 
             intersectionsFound = 0;
 
-            if(layer == 1) {
-                printf("\nlayer 1...\n");
-                printf("i: %d\n", i);
-                printf("Bottom Layer: %d\n", bottomLayer);
-                //    printf("Layers in tri: %d\n", layersInTri[gtid]);
-            }
+            segmentIndex = localStartIndexInSegments + 2*i;
 
-            if(i==1) {
-                printf("\n at i=1...\n");
-                printf("layer=%d\n", layer);
-                printf("bottomLayer=%d\n", bottomLayer);
-                printf("gtid=%d\n", gtid);
-            }
+
+            //if(layer == 1) {
+            //    printf("\nlayer 1...\n");
+            //    printf("i: %d\n", i);
+            //    printf("Bottom Layer: %d\n", bottomLayer);
+            ////    printf("Layers in tri: %d\n", layersInTri[gtid]);
+            //}
+
+            //if(i==1) {
+            //    printf("\n at i=1...\n");
+            //    printf("layer=%d\n", layer);
+            //    printf("bottomLayer=%d\n", bottomLayer);
+            //    printf("gtid=%d\n", gtid);
+            //}
 
             get_intersection(x0, x1, y0, y1, z0, z1, zp, x_r, y_r, parallel, non_intersecting);
             if(!(*non_intersecting)){
-                seg_x[localStartIndexInSegments] = *x_r;
-                seg_y[localStartIndexInSegments] = *y_r;
-                seg_l[localStartIndexInSegments] = layer;
-                intersectionsFound++;
+                seg_x[segmentIndex] = *x_r;
+                seg_y[segmentIndex] = *y_r;
+                seg_l[segmentIndex] = layer;
+                segmentIndex++;
             }
 
             get_intersection(x1, x2, y1, y2, z1, z2, zp, x_r, y_r, parallel, non_intersecting);
             if(!(*non_intersecting)){
-                seg_x[localStartIndexInSegments+intersectionsFound] = *x_r;
-                seg_y[localStartIndexInSegments+intersectionsFound] = *y_r;
-                seg_l[localStartIndexInSegments+intersectionsFound] = layer;
-                intersectionsFound++;
+                seg_x[segmentIndex] = *x_r;
+                seg_y[segmentIndex] = *y_r;
+                seg_l[segmentIndex] = layer;
+                segmentIndex++;
             }
 
             get_intersection(x2, x0, y2, y0, z2, z0, zp, x_r, y_r, parallel, non_intersecting);
             if(!(*non_intersecting)){
-                seg_x[localStartIndexInSegments+intersectionsFound] = *x_r;
-                seg_y[localStartIndexInSegments+intersectionsFound] = *y_r;
-                seg_l[localStartIndexInSegments+intersectionsFound] = layer;
-                intersectionsFound++;
+                seg_x[segmentIndex] = *x_r;
+                seg_y[segmentIndex] = *y_r;
+                seg_l[segmentIndex] = layer;
+                segmentIndex++;
             }
+
+            //get_intersection(x0, x1, y0, y1, z0, z1, zp, x_r, y_r, parallel, non_intersecting);
+            //if(!(*non_intersecting)){
+            //    seg_x[localStartIndexInSegments+i] = *x_r;
+            //    seg_y[localStartIndexInSegments+i] = *y_r;
+            //    seg_l[localStartIndexInSegments+i] = layer;
+            //    intersectionsFound++;
+            //}
+
+            //get_intersection(x1, x2, y1, y2, z1, z2, zp, x_r, y_r, parallel, non_intersecting);
+            //if(!(*non_intersecting)){
+            //    seg_x[localStartIndexInSegments+i+intersectionsFound] = *x_r;
+            //    seg_y[localStartIndexInSegments+i+intersectionsFound] = *y_r;
+            //    seg_l[localStartIndexInSegments+i+intersectionsFound] = layer;
+            //    intersectionsFound++;
+            //}
+
+            //get_intersection(x2, x0, y2, y0, z2, z0, zp, x_r, y_r, parallel, non_intersecting);
+            //if(!(*non_intersecting)){
+            //    seg_x[localStartIndexInSegments+i+intersectionsFound] = *x_r;
+            //    seg_y[localStartIndexInSegments+i+intersectionsFound] = *y_r;
+            //    seg_l[localStartIndexInSegments+i+intersectionsFound] = layer;
+            //    intersectionsFound++;
+            //}
             // TODO: Handle boundary cases for planar triangles and tangentially intersecting triangles
         }
     }
@@ -207,12 +230,12 @@ int main(int argc, char* argv[]) {
 
     const int n = 1;
     const int N = n*3;
-    const float layerHeight = 1.;
 
 
 //    float x[N] = {0.,  0., 1., 0., 1., 1., 0., 0., 0.};
 //    float y[N] = {0.,  0., 0., 0., 0., 0., 0., 1., 1.};
 //    float z[N] = {.25, 1.25, 1.25, 0.25, 0.25, 1.25, 1.25, 2.6, 2.6};
+    const float layerHeight = .2;
     float x[N] = {.5,  .5, .5};
     float y[N] = {1.5, 2.5, 3.5};
     float z[N] = {.5,   1.5, .5};
@@ -238,16 +261,16 @@ int main(int argc, char* argv[]) {
     float*  z_p = thrust::raw_pointer_cast( &dz[0] );
     layersInEachTriangle<<<2, 8>>>(z_p, layersInTris_p, n, layerHeight);
 
-    print_vector("layersInTris", layersInTris);
+    //print_vector("layersInTris", layersInTris);
 
     thrust::device_vector<int> intersectionSegmentsIndexStart(n, 0);
     thrust::inclusive_scan(layersInTris.begin(), layersInTris.end(), intersectionSegmentsIndexStart.begin());
 
-    print_vector("intersectionSegmentsIndexStart", intersectionSegmentsIndexStart);
+    //print_vector("intersectionSegmentsIndexStart", intersectionSegmentsIndexStart);
 
     int totalIntersections = intersectionSegmentsIndexStart[intersectionSegmentsIndexStart.size()-1];
 
-    printf("totalIntersections: %d\n", totalIntersections);
+    //printf("totalIntersections: %d\n", totalIntersections);
 
     // Intersection segment coordinate arrays
     thrust::device_vector<float> iscx(totalIntersections*2, 0);
@@ -262,10 +285,24 @@ int main(int argc, char* argv[]) {
 
     calculateIntersections<<<2, 8>>>(x_p, y_p, z_p, layersInTris_p, intersectionSegmentsIndexStart_p, iscx_p, iscy_p, iscl_p, layerHeight, n);
 
+    printf("totalIntersections: %d\n", totalIntersections);
+    print_vector("layersInTris", layersInTris);
+
     print_vector("iscx", iscx);
     print_vector("iscy", iscy);
     print_vector("iscl", iscl);
 
+
+    // Copy over our layer vector so that we can use it as a key vector twice for stable_sort_by_key
+    thrust::device_vector<float> iscl2(totalIntersections*2, 0);
+    thrust::copy(iscl.begin(), iscl.end(), iscl2.begin());
+
+    thrust::stable_sort_by_key(thrust::device, iscl.begin(), iscl.end(), iscx.begin());
+    thrust::stable_sort_by_key(thrust::device, iscl2.begin(), iscl2.end(), iscy.begin());
+
+    print_vector("iscx", iscx);
+    print_vector("iscy", iscy);
+    print_vector("iscl", iscl);
 
 
 //    thrust::equal_to<int> binary_pred;
