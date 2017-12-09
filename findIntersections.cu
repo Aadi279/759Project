@@ -166,7 +166,7 @@ __global__ void calculateIntersections(float* xs, float* ys, float* zs, int* lay
 
             get_intersection(x0, x1, y0, y1, z0, z1, zp, x_r, y_r, parallel, non_intersecting);
             // Possibly switch top two ifs in order to handle case where we have a flush triangle
-            if(!(*non_intersecting) && (si < 2)){
+            if(!(*non_intersecting)){
                 if(*parallel) {
                     seg_x[segmentOffset+si] = x0;
                     seg_y[segmentOffset+si] = y0;
@@ -176,7 +176,7 @@ __global__ void calculateIntersections(float* xs, float* ys, float* zs, int* lay
                     seg_y[segmentOffset+si] = y1;
                     seg_l[segmentOffset+si] = layer;
                     si++;
-                } else {
+                } else if(si < 2){
                     seg_x[segmentOffset+si] = *x_r;
                     seg_y[segmentOffset+si] = *y_r;
                     seg_l[segmentOffset+si] = layer;
@@ -185,7 +185,7 @@ __global__ void calculateIntersections(float* xs, float* ys, float* zs, int* lay
             }
 
             get_intersection(x1, x2, y1, y2, z1, z2, zp, x_r, y_r, parallel, non_intersecting);
-            if(!(*non_intersecting) && (si < 2)){
+            if(!(*non_intersecting)){
                 if(*parallel) {
                     seg_x[segmentOffset+si] = x1;
                     seg_y[segmentOffset+si] = y1;
@@ -195,7 +195,7 @@ __global__ void calculateIntersections(float* xs, float* ys, float* zs, int* lay
                     seg_y[segmentOffset+si] = y2;
                     seg_l[segmentOffset+si] = layer;
                     si++;
-                } else {
+                } else if(si < 2){
                     seg_x[segmentOffset+si] = *x_r;
                     seg_y[segmentOffset+si] = *y_r;
                     seg_l[segmentOffset+si] = layer;
@@ -204,7 +204,7 @@ __global__ void calculateIntersections(float* xs, float* ys, float* zs, int* lay
             }
 
             get_intersection(x2, x0, y2, y0, z2, z0, zp, x_r, y_r, parallel, non_intersecting);
-            if(!(*non_intersecting) && (si < 2)){
+            if(!(*non_intersecting)) {
                 if(*parallel) {
                     seg_x[segmentOffset+si] = x2;
                     seg_y[segmentOffset+si] = y2;
@@ -214,7 +214,7 @@ __global__ void calculateIntersections(float* xs, float* ys, float* zs, int* lay
                     seg_y[segmentOffset+si] = y0;
                     seg_l[segmentOffset+si] = layer;
                     si++;
-                } else {
+                } else if(si < 2){
                     seg_x[segmentOffset+si] = *x_r;
                     seg_y[segmentOffset+si] = *y_r;
                     seg_l[segmentOffset+si] = layer;

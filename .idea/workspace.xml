@@ -63,10 +63,10 @@
       <file leaf-file-name="findIntersections.cu" pinned="false" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/findIntersections.cu">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="397">
-              <caret line="299" column="0" lean-forward="false" selection-start-line="299" selection-start-column="0" selection-end-line="299" selection-end-column="0" />
+            <state relative-caret-position="-1071">
+              <caret line="196" column="22" lean-forward="true" selection-start-line="196" selection-start-column="22" selection-end-line="196" selection-end-column="22" />
               <folding>
-                <element signature="e#7202#7219#0" expanded="true" />
+                <element signature="e#8977#8994#0" expanded="true" />
               </folding>
             </state>
           </provider>
@@ -202,15 +202,16 @@
       <workItem from="1512528054370" duration="530000" />
       <workItem from="1512577383290" duration="531000" />
       <workItem from="1512605852013" duration="1429000" />
-      <workItem from="1512776895875" duration="659000" />
+      <workItem from="1512776895875" duration="2355000" />
     </task>
     <servers />
   </component>
   <component name="TimeTrackingManager">
-    <option name="totallyTimeSpent" value="22689000" />
+    <option name="totallyTimeSpent" value="24385000" />
   </component>
   <component name="ToolWindowManager">
     <frame x="824" y="22" width="840" height="981" extended-state="0" />
+    <editor active="true" />
     <layout>
       <window_info id="Project" active="false" anchor="left" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="true" show_stripe_button="true" weight="0.17669173" sideWeight="0.5" order="0" side_tool="false" content_ui="combo" />
       <window_info id="TODO" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="6" side_tool="false" content_ui="tabs" />
@@ -302,7 +303,7 @@
         <state relative-caret-position="4340">
           <caret line="310" column="1" lean-forward="false" selection-start-line="310" selection-start-column="1" selection-end-line="310" selection-end-column="1" />
           <folding>
-            <element signature="e#7202#7219#0" expanded="true" />
+            <element signature="e#8977#8994#0" expanded="true" />
           </folding>
         </state>
       </provider>
@@ -338,7 +339,7 @@
         <state relative-caret-position="4165">
           <caret line="250" column="0" lean-forward="false" selection-start-line="250" selection-start-column="0" selection-end-line="250" selection-end-column="0" />
           <folding>
-            <element signature="e#7202#7219#0" expanded="true" />
+            <element signature="e#8977#8994#0" expanded="true" />
           </folding>
         </state>
       </provider>
@@ -382,7 +383,7 @@
         <state relative-caret-position="4250">
           <caret line="250" column="0" lean-forward="false" selection-start-line="250" selection-start-column="0" selection-end-line="250" selection-end-column="0" />
           <folding>
-            <element signature="e#7202#7219#0" expanded="true" />
+            <element signature="e#8977#8994#0" expanded="true" />
           </folding>
         </state>
       </provider>
@@ -450,7 +451,7 @@
         <state relative-caret-position="4165">
           <caret line="250" column="0" lean-forward="true" selection-start-line="250" selection-start-column="0" selection-end-line="250" selection-end-column="0" />
           <folding>
-            <element signature="e#7202#7219#0" expanded="true" />
+            <element signature="e#8977#8994#0" expanded="true" />
           </folding>
         </state>
       </provider>
@@ -486,7 +487,7 @@
         <state relative-caret-position="4199">
           <caret line="247" column="30" lean-forward="false" selection-start-line="247" selection-start-column="30" selection-end-line="247" selection-end-column="30" />
           <folding>
-            <element signature="e#7202#7219#0" expanded="true" />
+            <element signature="e#8977#8994#0" expanded="true" />
           </folding>
         </state>
       </provider>
@@ -554,7 +555,7 @@
         <state relative-caret-position="4199">
           <caret line="247" column="30" lean-forward="false" selection-start-line="247" selection-start-column="30" selection-end-line="247" selection-end-column="30" />
           <folding>
-            <element signature="e#7202#7219#0" expanded="true" />
+            <element signature="e#8977#8994#0" expanded="true" />
           </folding>
         </state>
       </provider>
@@ -620,10 +621,10 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/findIntersections.cu">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="397">
-          <caret line="299" column="0" lean-forward="false" selection-start-line="299" selection-start-column="0" selection-end-line="299" selection-end-column="0" />
+        <state relative-caret-position="-1071">
+          <caret line="196" column="22" lean-forward="true" selection-start-line="196" selection-start-column="22" selection-end-line="196" selection-end-column="22" />
           <folding>
-            <element signature="e#7202#7219#0" expanded="true" />
+            <element signature="e#8977#8994#0" expanded="true" />
           </folding>
         </state>
       </provider>
