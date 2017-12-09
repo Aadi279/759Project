@@ -84,6 +84,9 @@ __device__ void get_intersection(float x0, float x1,
 
     if(denom == 0) {
         *parallel = true;
+        if(z1 != zp) {
+            *non_intersecting = true;
+        }
         return;
     }
 
@@ -91,11 +94,14 @@ __device__ void get_intersection(float x0, float x1,
 
     if(t < 0 || t > 1) {
         *non_intersecting = true;
+        //printf("t=%f, x=%f, y=%f, non_intersecting=%d\n", t, *x_r, *y_r, *non_intersecting);
         return;
     }
 
     *x_r = x0 + t * (x1 - x0);
     *y_r = y0 + t * (y1 - y0);
+
+    //printf("t=%f, x=%f, y=%f, non_intersecting=%d\n", t, *x_r, *y_r, *non_intersecting);
     return;
 }
 
@@ -132,16 +138,15 @@ __global__ void calculateIntersections(float* xs, float* ys, float* zs, int* lay
         float* y_r = (float*)malloc(sizeof(float));
         bool* non_intersecting = (bool*)malloc(sizeof(float));
         bool* parallel = (bool*)malloc(sizeof(float));
-        int intersectionsFound;
 
-        int segmentIndex;
+        int segmentOffset;
+        int si;
         for(int i = 0; i < layersInTri[gtid]; i++) {
             layer = bottomLayer + i;
             zp = layer * lH;
 
-            intersectionsFound = 0;
-
-            segmentIndex = localStartIndexInSegments + 2*i;
+            segmentOffset = localStartIndexInSegments + 2*i;
+            si = 0;
 
 
             //if(layer == 1) {
@@ -158,29 +163,66 @@ __global__ void calculateIntersections(float* xs, float* ys, float* zs, int* lay
             //    printf("gtid=%d\n", gtid);
             //}
 
+
             get_intersection(x0, x1, y0, y1, z0, z1, zp, x_r, y_r, parallel, non_intersecting);
-            if(!(*non_intersecting)){
-                seg_x[segmentIndex] = *x_r;
-                seg_y[segmentIndex] = *y_r;
-                seg_l[segmentIndex] = layer;
-                segmentIndex++;
+            // Possibly switch top two ifs in order to handle case where we have a flush triangle
+            if(!(*non_intersecting) && (si < 2)){
+                if(*parallel) {
+                    seg_x[segmentOffset+si] = x0;
+                    seg_y[segmentOffset+si] = y0;
+                    seg_l[segmentOffset+si] = layer;
+                    si++;
+                    seg_x[segmentOffset+si] = x1;
+                    seg_y[segmentOffset+si] = y1;
+                    seg_l[segmentOffset+si] = layer;
+                    si++;
+                } else {
+                    seg_x[segmentOffset+si] = *x_r;
+                    seg_y[segmentOffset+si] = *y_r;
+                    seg_l[segmentOffset+si] = layer;
+                    si++;
+                }
             }
 
             get_intersection(x1, x2, y1, y2, z1, z2, zp, x_r, y_r, parallel, non_intersecting);
-            if(!(*non_intersecting)){
-                seg_x[segmentIndex] = *x_r;
-                seg_y[segmentIndex] = *y_r;
-                seg_l[segmentIndex] = layer;
-                segmentIndex++;
+            if(!(*non_intersecting) && (si < 2)){
+                if(*parallel) {
+                    seg_x[segmentOffset+si] = x1;
+                    seg_y[segmentOffset+si] = y1;
+                    seg_l[segmentOffset+si] = layer;
+                    si++;
+                    seg_x[segmentOffset+si] = x2;
+                    seg_y[segmentOffset+si] = y2;
+                    seg_l[segmentOffset+si] = layer;
+                    si++;
+                } else {
+                    seg_x[segmentOffset+si] = *x_r;
+                    seg_y[segmentOffset+si] = *y_r;
+                    seg_l[segmentOffset+si] = layer;
+                    si++;
+                }
             }
 
             get_intersection(x2, x0, y2, y0, z2, z0, zp, x_r, y_r, parallel, non_intersecting);
-            if(!(*non_intersecting)){
-                seg_x[segmentIndex] = *x_r;
-                seg_y[segmentIndex] = *y_r;
-                seg_l[segmentIndex] = layer;
-                segmentIndex++;
+            if(!(*non_intersecting) && (si < 2)){
+                if(*parallel) {
+                    seg_x[segmentOffset+si] = x2;
+                    seg_y[segmentOffset+si] = y2;
+                    seg_l[segmentOffset+si] = layer;
+                    si++;
+                    seg_x[segmentOffset+si] = x0;
+                    seg_y[segmentOffset+si] = y0;
+                    seg_l[segmentOffset+si] = layer;
+                    si++;
+                } else {
+                    seg_x[segmentOffset+si] = *x_r;
+                    seg_y[segmentOffset+si] = *y_r;
+                    seg_l[segmentOffset+si] = layer;
+                    si++;
+                }
             }
+
+            //printf("segmentIndex1: %d\n", segmentIndex);
 
             //get_intersection(x0, x1, y0, y1, z0, z1, zp, x_r, y_r, parallel, non_intersecting);
             //if(!(*non_intersecting)){
@@ -228,17 +270,26 @@ int main(int argc, char* argv[]) {
 
     float time = 0.f;
 
-    const int n = 1;
+    const int n = 3;
     const int N = n*3;
 
 
 //    float x[N] = {0.,  0., 1., 0., 1., 1., 0., 0., 0.};
 //    float y[N] = {0.,  0., 0., 0., 0., 0., 0., 1., 1.};
 //    float z[N] = {.25, 1.25, 1.25, 0.25, 0.25, 1.25, 1.25, 2.6, 2.6};
-    const float layerHeight = .2;
-    float x[N] = {.5,  .5, .5};
-    float y[N] = {1.5, 2.5, 3.5};
-    float z[N] = {.5,   1.5, .5};
+
+    //const float layerHeight = .2;
+    //float x[N] = {.5,  .5, .5};
+    //float y[N] = {1.5, 2.5, 3.5};
+    //float z[N] = {.5,   1.5, .5};
+
+    const float layerHeight = 1.;
+    float x[N] = {0., 0., 0.,   0., 0., 2.,   0., 0., 2.};
+    float y[N] = {0., 2., 0.,   0., 0., 0.,   0., 2., 0.};
+    float z[N] = {0., 2.5, 2.5,   0., 2.5, 2.5,   0., 2.5, 2.5};
+    //float x[N] = {0., 0.,  0.};
+    //float y[N] = {0., 2.,  0.};
+    //float z[N] = {.5, 2.5, 2.5};
 
 
     // Timing things
@@ -297,12 +348,16 @@ int main(int argc, char* argv[]) {
     thrust::device_vector<float> iscl2(totalIntersections*2, 0);
     thrust::copy(iscl.begin(), iscl.end(), iscl2.begin());
 
+    //thrust::stable_sort_by_key(thrust::device, iscx.begin(), iscx.end(), iscl.begin());
+    //thrust::stable_sort_by_key(thrust::device, iscy.begin(), iscy.end(), iscl2.begin());
     thrust::stable_sort_by_key(thrust::device, iscl.begin(), iscl.end(), iscx.begin());
     thrust::stable_sort_by_key(thrust::device, iscl2.begin(), iscl2.end(), iscy.begin());
 
     print_vector("iscx", iscx);
     print_vector("iscy", iscy);
     print_vector("iscl", iscl);
+
+
 
 
 //    thrust::equal_to<int> binary_pred;
