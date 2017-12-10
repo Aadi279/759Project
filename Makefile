@@ -26,6 +26,9 @@ all : findIntersections
 findIntersections: findIntersections.cu
 	module load cuda;nvcc -o findIntersections $(OPT) findIntersections.cu -ccbin $(BIN)
 
+testInline: testInline.cu
+	module load cuda;nvcc -o testInline $(OPT) testInline.cu -ccbin $(BIN)
+
 # TODO: add targets for building executables
 
 .PHONY: clean

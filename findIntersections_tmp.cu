@@ -70,22 +70,22 @@ __global__ void layersInEachTriangle(float* zs, int* layersInTris, int numberOfT
 __device__ void get_intersection(float x0, float x1, 
                                  float y0, float y1, 
                                  float z0, float z1, float zp, 
-                                 float &x_r, float &y_r, 
-                                 bool &parallel, 
-                                 bool &non_intersecting) {
+                                 float* x_r, float* y_r, 
+                                 bool* parallel, 
+                                 bool* non_intersecting) {
 
     //printf("Getting intersection...\nx0:%f\nx1:%f\ny0:%f\ny1:%f\nz0:%f\nz1:%f\nzp:%f\n", x0, x1, y0, y1, z0, z1, zp);
 
     //TODO: Put this check outside and handle by putting both points into the segment list. This case represents a planar line segment
     float denom = (z1 - z0);
 
-    non_intersecting = false;
-    parallel = false;
+    *non_intersecting = false;
+    *parallel = false;
 
     if(denom == 0) {
-        parallel = true;
+        *parallel = true;
         if(z1 != zp) {
-            non_intersecting = true;
+            *non_intersecting = true;
         }
         return;
     }
@@ -93,43 +93,16 @@ __device__ void get_intersection(float x0, float x1,
     float t = (zp - z0) / denom;
 
     if(t < 0 || t > 1) {
-        non_intersecting = true;
+        *non_intersecting = true;
         //printf("t=%f, x=%f, y=%f, non_intersecting=%d\n", t, *x_r, *y_r, *non_intersecting);
         return;
     }
 
-    x_r = x0 + t * (x1 - x0);
-    y_r = y0 + t * (y1 - y0);
+    *x_r = x0 + t * (x1 - x0);
+    *y_r = y0 + t * (y1 - y0);
     
     //printf("t=%f, x=%f, y=%f, non_intersecting=%d\n", t, *x_r, *y_r, *non_intersecting);
     return;
-}
-
-__device__ void addToSegments(const float x0, const float x1, const float y0, const float y1, const float z0, const float z1, int layer, const float zp,  int &si, float* seg_x, float* seg_y, float* seg_l) {
-    float x_r; float y_r;
-    bool parallel; bool non_intersecting;
-    get_intersection(x0, x1, y0, y1, z0, z1, zp, x_r, y_r, parallel, non_intersecting);
-    if(!(non_intersecting)){
-        //if(parallel) {
-        //    seg_x[si] = x0;
-        //    seg_y[si] = y0;
-        //    seg_l[si] = layer;
-        //    si++;
-        //    seg_x[si] = x1;
-        //    seg_y[si] = y1;
-        //    seg_l[si] = layer;
-        //    si++;
-        //} else {
-            seg_x[si] = x_r;
-            seg_y[si] = y_r;
-            seg_l[si] = layer;
-            si++;
-        //}
-    }
-}
-
-__device__ bool isMiddle(const float z0, const float z1, const float z2) {
-    return ((z0 < z1) && (z1 < z2)) || ((z2 < z1) && (z1 < z0));
 }
 
 __global__ void calculateIntersections(float* xs, float* ys, float* zs, int* layersInTri, int* startIndexInSegments, float* seg_x, float* seg_y, float* seg_l, const float lH, const int n) {
@@ -161,90 +134,120 @@ __global__ void calculateIntersections(float* xs, float* ys, float* zs, int* lay
 
         // Iterate through layers
         int layer; float zp;
-        float x_r;
-        float y_r;
-        bool non_intersecting;
-        bool parallel;
+        float* x_r = (float*)malloc(sizeof(float)); //TODO: Put this in shared memory to boost performance
+        float* y_r = (float*)malloc(sizeof(float));
+        bool* non_intersecting = (bool*)malloc(sizeof(float));
+        bool* parallel = (bool*)malloc(sizeof(float));
 
         int segmentOffset;
-        int si=localStartIndexInSegments;
-
-        char pointsOnLayerPlane;
+        int si;
         for(int i = 0; i < layersInTri[gtid]; i++) {
             layer = bottomLayer + i;
             zp = layer * lH;
-            pointsOnLayerPlane = 0;
-            if(zp == z0) {
-                pointsOnLayerPlane++;
-            }
-            if(zp == z1) {
-                pointsOnLayerPlane++;
-            }
-            if(zp == z2) {
-                pointsOnLayerPlane++;
-            }
-            if(pointsOnLayerPlane == 0) {
-                // TODO: We'll also have to handle the case where a triangle crosses a layer
-                // and the layer lies right on the point
-                // Honestly, I think the thing to do would be to just check whether the triangle
-                // has any points on this layer in a separate handler
 
-                addToSegments(x0, x1, y0, y1, z0, z1, layer, zp, si, seg_x, seg_y, seg_l);
-                addToSegments(x1, x2, y1, y2, z1, z2, layer, zp, si, seg_x, seg_y, seg_l);
-                addToSegments(x2, x0, y2, y0, z2, z0, layer, zp, si, seg_x, seg_y, seg_l);
+            segmentOffset = localStartIndexInSegments + 2*i;
+            si = 0;
 
-                // TODO: Handle boundary cases for planar triangles and tangentially intersecting triangles
-            } else if(pointsOnLayerPlane < 3) {
-                if(zp == z0) {
-                    seg_x[si] = x0;
-                    seg_y[si] = y0;
-                    seg_l[si] = layer;
+
+            //if(layer == 1) {
+            //    printf("\nlayer 1...\n");
+            //    printf("i: %d\n", i);
+            //    printf("Bottom Layer: %d\n", bottomLayer);
+            ////    printf("Layers in tri: %d\n", layersInTri[gtid]);
+            //}
+
+            //if(i==1) {
+            //    printf("\n at i=1...\n");
+            //    printf("layer=%d\n", layer);
+            //    printf("bottomLayer=%d\n", bottomLayer);
+            //    printf("gtid=%d\n", gtid);
+            //}
+
+
+            get_intersection(x0, x1, y0, y1, z0, z1, zp, x_r, y_r, parallel, non_intersecting);
+            // Possibly switch top two ifs in order to handle case where we have a flush triangle
+            if(!(*non_intersecting) && (si < 2)){
+                if(*parallel) {
+                    seg_x[segmentOffset+si] = x0;
+                    seg_y[segmentOffset+si] = y0;
+                    seg_l[segmentOffset+si] = layer;
                     si++;
-                    if(pointsOnLayerPlane == 1) {
-                        if(isMiddle(z1,z0,z2)){
-                        // TODO: Have to add a check here to see if it's the middle point which sits on the edge
-                            addToSegments(x1, x2, y1, y2, z1, z2, layer, zp, si, seg_x, seg_y, seg_l);
-                        } else {
-                            seg_x[si] = x0;
-                            seg_y[si] = y0;
-                            seg_l[si] = layer;
-                            si++;
-                        }
-                    }
-                }
-                if(zp == z1) {
-                    seg_x[si] = x1;
-                    seg_y[si] = y1;
-                    seg_l[si] = layer;
+                    seg_x[segmentOffset+si] = x1;
+                    seg_y[segmentOffset+si] = y1;
+                    seg_l[segmentOffset+si] = layer;
                     si++;
-                    if(pointsOnLayerPlane == 1) {
-                        if(isMiddle(z0, z1, z2)) {
-                            addToSegments(x2, x0, y2, y0, z2, z0, layer, zp, si, seg_x, seg_y, seg_l);
-                        } else {
-                            seg_x[si] = x1;
-                            seg_y[si] = y1;
-                            seg_l[si] = layer;
-                            si++;
-                        }
-                    }
-                }
-                if(zp == z2) {
-                    seg_x[si] = x2;
-                    seg_y[si] = y2;
-                    seg_l[si] = layer;
+                } else {
+                    seg_x[segmentOffset+si] = *x_r;
+                    seg_y[segmentOffset+si] = *y_r;
+                    seg_l[segmentOffset+si] = layer;
                     si++;
-                    if(pointsOnLayerPlane == 1) {
-                        if(isMiddle(z0, z1, z2)) {
-                            addToSegments(x0, x2, y0, y2, z0, z2, layer, zp, si, seg_x, seg_y, seg_l);
-                        } else {
-                            seg_x[si] = x2;
-                            seg_y[si] = y2;
-                            seg_l[si] = layer;
-                            si++;
-                        }
-                    }
                 }
             }
+
+            get_intersection(x1, x2, y1, y2, z1, z2, zp, x_r, y_r, parallel, non_intersecting);
+            if(!(*non_intersecting) && (si < 2)){
+                if(*parallel) {
+                    seg_x[segmentOffset+si] = x1;
+                    seg_y[segmentOffset+si] = y1;
+                    seg_l[segmentOffset+si] = layer;
+                    si++;
+                    seg_x[segmentOffset+si] = x2;
+                    seg_y[segmentOffset+si] = y2;
+                    seg_l[segmentOffset+si] = layer;
+                    si++;
+                } else {
+                    seg_x[segmentOffset+si] = *x_r;
+                    seg_y[segmentOffset+si] = *y_r;
+                    seg_l[segmentOffset+si] = layer;
+                    si++;
+                }
+            }
+
+            get_intersection(x2, x0, y2, y0, z2, z0, zp, x_r, y_r, parallel, non_intersecting);
+            if(!(*non_intersecting) && (si < 2)){
+                if(*parallel) {
+                    seg_x[segmentOffset+si] = x2;
+                    seg_y[segmentOffset+si] = y2;
+                    seg_l[segmentOffset+si] = layer;
+                    si++;
+                    seg_x[segmentOffset+si] = x0;
+                    seg_y[segmentOffset+si] = y0;
+                    seg_l[segmentOffset+si] = layer;
+                    si++;
+                } else {
+                    seg_x[segmentOffset+si] = *x_r;
+                    seg_y[segmentOffset+si] = *y_r;
+                    seg_l[segmentOffset+si] = layer;
+                    si++;
+                }
+            }
+
+            //printf("segmentIndex1: %d\n", segmentIndex);
+
+            //get_intersection(x0, x1, y0, y1, z0, z1, zp, x_r, y_r, parallel, non_intersecting);
+            //if(!(*non_intersecting)){
+            //    seg_x[localStartIndexInSegments+i] = *x_r;
+            //    seg_y[localStartIndexInSegments+i] = *y_r;
+            //    seg_l[localStartIndexInSegments+i] = layer;
+            //    intersectionsFound++;
+            //}
+
+            //get_intersection(x1, x2, y1, y2, z1, z2, zp, x_r, y_r, parallel, non_intersecting);
+            //if(!(*non_intersecting)){
+            //    seg_x[localStartIndexInSegments+i+intersectionsFound] = *x_r;
+            //    seg_y[localStartIndexInSegments+i+intersectionsFound] = *y_r;
+            //    seg_l[localStartIndexInSegments+i+intersectionsFound] = layer;
+            //    intersectionsFound++;
+            //}
+
+            //get_intersection(x2, x0, y2, y0, z2, z0, zp, x_r, y_r, parallel, non_intersecting);
+            //if(!(*non_intersecting)){
+            //    seg_x[localStartIndexInSegments+i+intersectionsFound] = *x_r;
+            //    seg_y[localStartIndexInSegments+i+intersectionsFound] = *y_r;
+            //    seg_l[localStartIndexInSegments+i+intersectionsFound] = layer;
+            //    intersectionsFound++;
+            //}
+            // TODO: Handle boundary cases for planar triangles and tangentially intersecting triangles
         }
     }
 //    for(int i=0; i < 3; i++) {
@@ -267,7 +270,7 @@ int main(int argc, char* argv[]) {
 
     float time = 0.f;
 
-    const int n = 4;
+    const int n = 3;
     const int N = n*3;
 
 
@@ -280,20 +283,13 @@ int main(int argc, char* argv[]) {
     //float y[N] = {1.5, 2.5, 3.5};
     //float z[N] = {.5,   1.5, .5};
 
-    //const float layerHeight = 1.;
-    //float x[N] = {0., 0., 0.,   0., 0., 2.,   0., 0., 2.};
-    //float y[N] = {0., 2., 0.,   0., 0., 0.,   0., 2., 0.};
-    //float z[N] = {0., 2., 2.,   0., 2., 2.,   0., 2., 2.};
-
     const float layerHeight = 1.;
-    float x[N] = {0., 0., 0.,   0., 0., 2.,   0., 0., 2.,   0., 0., 2.,};
-    float y[N] = {0., 2., 0.,   0., 0., 0.,   0., 2., 0.,   0., 2., 0.,};
-    float z[N] = {0., 2., 4.,   0., 4., 2.,   0., 2., 2.,   4., 2., 2.,};
-
-    //const float layerHeight = 1.;
-    //float x[N] = {0., 0., 0.,   0., 0., 2.};
-    //float y[N] = {0., 2., 0.,   0., 0., 0.};
-    //float z[N] = {0., 2., 2.,   0., 2., 2.};
+    float x[N] = {0., 0., 0.,   0., 0., 2.,   0., 0., 2.};
+    float y[N] = {0., 2., 0.,   0., 0., 0.,   0., 2., 0.};
+    float z[N] = {0., 2.5, 2.5,   0., 2.5, 2.5,   0., 2.5, 2.5};
+    //float x[N] = {0., 0.,  0.};
+    //float y[N] = {0., 2.,  0.};
+    //float z[N] = {.5, 2.5, 2.5};
 
 
     // Timing things
@@ -310,8 +306,6 @@ int main(int argc, char* argv[]) {
     thrust::copy(z, z+N, dz.begin());
 
     print_vector("x", dx);
-    print_vector("y", dy);
-    print_vector("z", dz);
 
     thrust::device_vector<int> layersInTris(n, 0);
     int*  layersInTris_p = thrust::raw_pointer_cast( &layersInTris[0] );
