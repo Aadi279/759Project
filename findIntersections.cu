@@ -247,10 +247,6 @@ __global__ void calculateIntersections(float* xs, float* ys, float* zs, int* lay
             }
         }
     }
-//    for(int i=0; i < 3; i++) {
-//        sx[stri + i]
-//    }
-
 }
 
 // simple routine to print contents of a vector
