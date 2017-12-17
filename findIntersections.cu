@@ -16,12 +16,6 @@
 #include <thrust/count.h>
 #include <thrust/functional.h>
 
-
-//__device__ __host__ bool moreThan5(int amount) {
-//    return amount > 5;
-//}
-
-
 /**
  * Generates an array of ints representing the height (in number of layers) which each triangle spans
  * @param zs
@@ -39,20 +33,12 @@ __global__ void layersInEachTriangle(float* zs, int* layersInTris, int numberOfT
     if(gtid < numberOfTris) {
         float z_max = max(max(z0, z1), z2);
         float z_min = min(min(z0, z1), z2);
-        //printf("floor(z_max/lH): %f\n", floor(z_max/lH));
-        //printf("ceil(z_min/lH): %f\n", ceil(z_min/lH));
         layersContained = floor(z_max/lH) - ceil(z_min / lH) + 1;
-        //if (layersContained*lH + z_min == z_max)
-        //layersContained++;
         layersInTris[gtid] = layersContained;
     }
 
     //TODO: Handle boundary case of triangles which intersect layer at a point or are completely coplanar
 }
-
-//__device__ float dot(float* xs, float* ys, float* zs, int i0, int i1) {
-//
-//}
 
 /**
  *
@@ -110,21 +96,10 @@ __device__ void addToSegments(const float x0, const float x1, const float y0, co
     bool parallel; bool non_intersecting;
     get_intersection(x0, x1, y0, y1, z0, z1, zp, x_r, y_r, parallel, non_intersecting);
     if(!(non_intersecting)){
-        //if(parallel) {
-        //    seg_x[si] = x0;
-        //    seg_y[si] = y0;
-        //    seg_l[si] = layer;
-        //    si++;
-        //    seg_x[si] = x1;
-        //    seg_y[si] = y1;
-        //    seg_l[si] = layer;
-        //    si++;
-        //} else {
         seg_x[si] = x_r;
         seg_y[si] = y_r;
         seg_l[si] = layer;
         si++;
-        //}
     }
 }
 
