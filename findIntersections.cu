@@ -43,7 +43,7 @@ __global__ void layersInEachTriangle(float* zs, int* layersInTris, int numberOfT
         //printf("ceil(z_min/lH): %f\n", ceil(z_min/lH));
         layersContained = floor(z_max/lH) - ceil(z_min / lH) + 1;
         //if (layersContained*lH + z_min == z_max)
-            //layersContained++;
+        //layersContained++;
         layersInTris[gtid] = layersContained;
     }
 
@@ -67,11 +67,11 @@ __global__ void layersInEachTriangle(float* zs, int* layersInTris, int numberOfT
  * @param y_r result of the intersection
  * @return
  */
-__device__ void get_intersection(float x0, float x1, 
-                                 float y0, float y1, 
-                                 float z0, float z1, float zp, 
-                                 float &x_r, float &y_r, 
-                                 bool &parallel, 
+__device__ void get_intersection(float x0, float x1,
+                                 float y0, float y1,
+                                 float z0, float z1, float zp,
+                                 float &x_r, float &y_r,
+                                 bool &parallel,
                                  bool &non_intersecting) {
 
     //printf("Getting intersection...\nx0:%f\nx1:%f\ny0:%f\ny1:%f\nz0:%f\nz1:%f\nzp:%f\n", x0, x1, y0, y1, z0, z1, zp);
@@ -100,7 +100,7 @@ __device__ void get_intersection(float x0, float x1,
 
     x_r = x0 + t * (x1 - x0);
     y_r = y0 + t * (y1 - y0);
-    
+
     //printf("t=%f, x=%f, y=%f, non_intersecting=%d\n", t, *x_r, *y_r, *non_intersecting);
     return;
 }
@@ -120,10 +120,10 @@ __device__ void addToSegments(const float x0, const float x1, const float y0, co
         //    seg_l[si] = layer;
         //    si++;
         //} else {
-            seg_x[si] = x_r;
-            seg_y[si] = y_r;
-            seg_l[si] = layer;
-            si++;
+        seg_x[si] = x_r;
+        seg_y[si] = y_r;
+        seg_l[si] = layer;
+        si++;
         //}
     }
 }
@@ -202,7 +202,7 @@ __global__ void calculateIntersections(float* xs, float* ys, float* zs, int* lay
                     si++;
                     if(pointsOnLayerPlane == 1) {
                         if(isMiddle(z1,z0,z2)){
-                        // TODO: Have to add a check here to see if it's the middle point which sits on the edge
+                            // TODO: Have to add a check here to see if it's the middle point which sits on the edge
                             addToSegments(x1, x2, y1, y2, z1, z2, layer, zp, si, seg_x, seg_y, seg_l);
                         } else {
                             seg_x[si] = x0;
@@ -249,6 +249,18 @@ __global__ void calculateIntersections(float* xs, float* ys, float* zs, int* lay
     }
 }
 
+__global__ void calculateScanPointsPerSegment(float* iscy_p, float* numScanPointsPerSegment, const float scanHeight, int totalIntersections)
+{
+    int gtid = blockIdx.x * blockDim.x + threadIdx.x;
+    if(gtid < totalIntersections) {
+        int y0 = iscy_p[gtid*2];
+        int y1 = iscy_p[gtid*2+1];
+        int ymax = max(y0, y1);
+        int ymin = min(y1, y0);
+        numScanPointsPerSegment[gtid] = floor(ymax / scanHeight) - ceil(ymin / scanHeight);
+    }
+}
+
 // simple routine to print contents of a vector
 template <typename Vector>
 void print_vector(const std::string& name, const Vector& v)
@@ -282,6 +294,7 @@ int main(int argc, char* argv[]) {
     //float z[N] = {0., 2., 2.,   0., 2., 2.,   0., 2., 2.};
 
     const float layerHeight = 1.;
+    const float scanHeight = .5;
     float x[N] = {0., 0., 0.,   0., 0., 2.,   0., 0., 2.,   0., 0., 2.,};
     float y[N] = {0., 2., 0.,   0., 0., 0.,   0., 2., 0.,   0., 2., 0.,};
     float z[N] = {0., 2., 4.,   0., 4., 2.,   0., 2., 2.,   4., 2., 2.,};
@@ -321,6 +334,7 @@ int main(int argc, char* argv[]) {
 
     //print_vector("intersectionSegmentsIndexStart", intersectionSegmentsIndexStart);
 
+    // Might want to do this asyncronously? Could be a costly operation
     int totalIntersections = intersectionSegmentsIndexStart[intersectionSegmentsIndexStart.size()-1];
 
     //printf("totalIntersections: %d\n", totalIntersections);
@@ -345,7 +359,7 @@ int main(int argc, char* argv[]) {
     print_vector("iscy", iscy);
     print_vector("iscl", iscl);
 
-    
+
     // Copy over our layer vector so that we can use it as a key vector twice for stable_sort_by_key
     thrust::device_vector<float> iscl2(totalIntersections*2, 0);
     thrust::copy(iscl.begin(), iscl.end(), iscl2.begin());
@@ -355,40 +369,20 @@ int main(int argc, char* argv[]) {
     thrust::stable_sort_by_key(thrust::device, iscl.begin(), iscl.end(), iscx.begin());
     thrust::stable_sort_by_key(thrust::device, iscl2.begin(), iscl2.end(), iscy.begin());
 
+    // TODO: we might put a pruning algorithm here to get rid of duplicate segments
+    // This would spare us in instances where we have non-manifold shapes in 3D space
+    // and allow us to say that more than 2 sequential duplicates indicates a non-manifold junction and we should
+    // continue through
+
     print_vector("iscx", iscx);
     print_vector("iscy", iscy);
     print_vector("iscl", iscl);
 
-    
-    
+    thrust::device_vector<float> scanPointsPerSegment(totalIntersections, 0);
+    float* scanPointsPerSegment_p = thrust::raw_pointer_cast( &scanPointsPerSegment[0] );
+    calculateScanPointsPerSegment<<<2, 32>>>(iscy_p, scanPointsPerSegment_p, scanHeight, totalIntersections); // Gotta get the total intersections
+    print_vector("scanPointsPerSegment", scanPointsPerSegment);
 
-//    thrust::equal_to<int> binary_pred;
-//    thrust::plus<int> binary_op;
-//    thrust::maximum<int> max_fn;
-//
-//    int day_out[N];
-//    int measurement_maxes[N];
-//    ////Part A:
-//    thrust::reduce_by_key(day, day+N, measurement, day_out, measurement_maxes, binary_pred, max_fn);
-//
-//    int numSites = thrust::count_if(measurement_maxes, measurement_maxes+11, moreThan5);
-//
-//    printf("%d\n", numSites);
-//
-//    ////Part B:
-//    thrust::sort_by_key(site, site + N, measurement);
-//
-//
-//    thrust::reduce_by_key(thrust::host,
-//                          site, site + N, measurement,
-//                          site, measurement,
-//                          binary_pred, binary_op);
-//
-//    for(int i=0; i<5; i++) {
-//        printf("%d ", measurement[i]);
-//    }
-//    printf("\n");
-//
 
     // Finish timing
     cudaEventRecord(stopEvent_inc,0);  //ending timing for inclusive
