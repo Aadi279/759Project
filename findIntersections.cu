@@ -132,6 +132,9 @@ __device__ bool isMiddle(const float z0, const float z1, const float z2) {
     return ((z0 < z1) && (z1 < z2)) || ((z2 < z1) && (z1 < z0));
 }
 
+// TODO: A couple ways this could be optimized:
+// - Processing tris with points lying on the layerplane in a totally separate kernel so that "normal" tris don't have to go through all these contingencies everytime for boundary conditions
+// - Sorting tris by number of layers spanned. This could allow us to process "short" tris on the same block as each other, having roughly the same loop size allows for smaller idle time
 __global__ void calculateIntersections(float* xs, float* ys, float* zs, int* layersInTri, int* startIndexInSegments, float* seg_x, float* seg_y, float* seg_l, const float lH, const int n) {
     int gtid = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -383,6 +386,10 @@ int main(int argc, char* argv[]) {
     calculateScanPointsPerSegment<<<2, 32>>>(iscy_p, scanPointsPerSegment_p, scanHeight, totalIntersections); // Gotta get the total intersections
     print_vector("scanPointsPerSegment", scanPointsPerSegment);
 
+
+    // PART 2: Linear scan of layer planes
+    // We begin with our list of segment points representing an unordered boundary
+    //
 
     // Finish timing
     cudaEventRecord(stopEvent_inc,0);  //ending timing for inclusive
