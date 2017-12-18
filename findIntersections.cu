@@ -227,7 +227,7 @@ __global__ void calculateIntersections(float* xs, float* ys, float* zs, int* lay
     }
 }
 
-__global__ void calculateScanPointsPerSegment(float* iscy_p, float* numScanPointsPerSegment, const float scanHeight, int totalIntersections)
+__global__ void calculateScanPointsPerSegment(float* iscy_p, int* numScanPointsPerSegment, const float scanHeight, int totalIntersections)
 {
     int gtid = blockIdx.x * blockDim.x + threadIdx.x;
     if(gtid < totalIntersections) {
@@ -242,12 +242,15 @@ __global__ void calculateScanPointsPerSegment(float* iscy_p, float* numScanPoint
 // TODO: this could be done inline, y1-y0 and x1-x0 should be reused between iterations
 __device__ float getXIntersection2D(float atY, float x0, float x1, float y0, float y1)
 {
+    printf("\nx0: %f\n\
+            y0: %f\n\
+            x1: %f\n\
+            y1: %f\n\n", x0, y0, x1, y1);
     float t = (atY - y0) / (y1 - y0);
     return t * (x1 - x0) + x0;
 }
 
-calculateScanIntersections<<<2, 32>>>(iscx, iscy, iscl, numScanPointsPerSegment, intersectionSegmentsIndexStart, scanIntersections, totalIntersections, scanHeight);
-__global__ void calculateScanIntersections(float* iscx, float* iscy, float* iscl, float* numScanPointsPerSegment, float* intersectionSegmentsIndexStart, float* scanIntersections, const int totalIntersections, const float scanHeight)
+__global__ void calculateScanIntersections(float* iscx, float* iscy, float* iscl, int* numScanPointsPerSegment, float* scanIntersections_x, float* scanIntersections_y, int* intersectionSegmentsIndexStart, const int totalIntersections, const float scanHeight)
 {
     // TODO: Needs outer loop, gtid != scanLineNumber
 
@@ -258,13 +261,27 @@ __global__ void calculateScanIntersections(float* iscx, float* iscy, float* iscl
         int startIndex =  intersectionSegmentsIndexStart[gtid];
         float x0 = iscx[gtid*2];
         float x1 = iscx[gtid*2+1];
-        float y0 = iscy[gtid*2];
-        float y1 = iscy[gtid*2+1];
-        int scanIntersectionIndex; float curY;
+        float y_0 = iscy[gtid*2]; // temp before we know max/min
+        float y_1 = iscy[gtid*2+1];
+        float y0 = min(y_0, y_1);
+        float y1 = max(y_0, y_1);
+        //printf("\ngtid: %d\n\
+        //        numScanPoints: %d\n\
+        //        x0: %f\n\
+        //        y0: %f\n\
+        //        x1: %f\n\
+        //        y1: %f\n\n", gtid, numScanPoints, x0, y0, x1, y1);
+
+        int scanIntersectionIndex; float curY; float resx;
+        //printf("numscanPoints:%d\n", numScanPoints);
+        //printf("totalIntersections:%d\n", totalIntersections);
         for(int i=0; i < numScanPoints; i++) {
             scanIntersectionIndex = i+startIndex;
             curY = y0 + i * scanHeight;
-            scanIntersections[scanIntersectionIndex] = getXIntersection2D(curY, x0, x1, y0, y1);
+            //printf("scanIntersectionIndex: %d\n", scanIntersectionIndex);
+            resx = x0 + (curY - y0) / (y1-y0) * (x1 - x0);
+            scanIntersections_x[scanIntersectionIndex] = resx;
+            scanIntersections_y[scanIntersectionIndex] = curY;
         }
     }
 }
@@ -347,6 +364,7 @@ int main(int argc, char* argv[]) {
     thrust::device_vector<float> iscl(totalIntersections*2, 0);
     float* iscx_p = thrust::raw_pointer_cast( &iscx[0] );
     float* iscy_p = thrust::raw_pointer_cast( &iscy[0] );
+    // TODO: Should probably convert to int everywhere
     float* iscl_p = thrust::raw_pointer_cast( &iscl[0] );
     float* x_p = thrust::raw_pointer_cast( &dx[0] );
     float* y_p = thrust::raw_pointer_cast( &dy[0] );
@@ -383,8 +401,8 @@ int main(int argc, char* argv[]) {
     // PART 2: Linear scan of layer planes
     // We begin with our list of segment points representing a set of unordered boundaries
 
-    thrust::device_vector<float> scanPointsPerSegment(totalIntersections, 0);
-    float* scanPointsPerSegment_p = thrust::raw_pointer_cast( &scanPointsPerSegment[0] );
+    thrust::device_vector<int> scanPointsPerSegment(totalIntersections, 0);
+    int* scanPointsPerSegment_p = thrust::raw_pointer_cast( &scanPointsPerSegment[0] );
     calculateScanPointsPerSegment<<<2, 32>>>(iscy_p, scanPointsPerSegment_p, scanHeight, totalIntersections); // Gotta get the total intersections
     print_vector("scanPointsPerSegment", scanPointsPerSegment);
 
@@ -393,10 +411,27 @@ int main(int argc, char* argv[]) {
     // warps to pick up larger warps at the end quicker once the external loop is added
 
     // Use
-    thrust::device_vector<int> scanIntersectionIndexStarts(n, 0);
-    thrust::inclusive_scan(scanPointsPerSegment.begin(), scanPointsPerSegment.end(), intersectionSegmentsIndexStart.begin());
 
-    calculateScanIntersections<<<2, 32>>>(iscx, iscy, iscl, numScanPointsPerSegment, intersectionSegmentsIndexStart, scanIntersections, totalIntersections, scanHeight);
+    thrust::device_vector<int> scanIntersectionIndexStart(totalIntersections, 0);
+    thrust::inclusive_scan(scanPointsPerSegment.begin(), scanPointsPerSegment.end(), scanIntersectionIndexStart.begin());
+    int totalScanPoints = scanIntersectionIndexStart[scanIntersectionIndexStart.size()-1];
+
+    print_vector("scanIntersectionIndexStart", scanIntersectionIndexStart);
+
+
+    thrust::device_vector<float> SIx(totalScanPoints, 0); // Scan intersections
+    thrust::device_vector<float> SIy(totalScanPoints, 0); // Scan intersections
+    float* SIx_p = thrust::raw_pointer_cast( &SIx[0] );
+    float* SIy_p = thrust::raw_pointer_cast( &SIy[0] );
+    int* scanIntersectionIndexStart_p = thrust::raw_pointer_cast( &scanIntersectionIndexStart[0] );
+
+
+//__global__ void calculateScanIntersections(float* iscx, float* iscy, float* iscl, int* numScanPointsPerSegment, int* intersectionSegmentsIndexStart, float* scanIntersections_x, float* scanIntersections_y, const int totalIntersections, const float scanHeight)
+
+    calculateScanIntersections<<<2, 32>>>(iscx_p, iscy_p, iscl_p, scanPointsPerSegment_p, SIx_p, SIy_p, scanIntersectionIndexStart_p, totalIntersections, scanHeight);
+
+    print_vector("SIx", SIx);
+    print_vector("SIy", SIy);
 
     // Finish timing
     cudaEventRecord(stopEvent_inc,0);  //ending timing for inclusive
@@ -406,7 +441,7 @@ int main(int argc, char* argv[]) {
     // END MY CODE
 
     // TODO: Unroll loops
-    // TODO: Use optized operations in cuda code where possible
+    // TODO: Use optimized operations in cuda code where possible
 
     //TODO: Free all resources
     //free resources
