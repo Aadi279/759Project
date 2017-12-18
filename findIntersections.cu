@@ -239,6 +239,36 @@ __global__ void calculateScanPointsPerSegment(float* iscy_p, float* numScanPoint
     }
 }
 
+// TODO: this could be done inline, y1-y0 and x1-x0 should be reused between iterations
+__device__ float getXIntersection2D(float atY, float x0, float x1, float y0, float y1)
+{
+    float t = (atY - y0) / (y1 - y0);
+    return t * (x1 - x0) + x0;
+}
+
+calculateScanIntersections<<<2, 32>>>(iscx, iscy, iscl, numScanPointsPerSegment, intersectionSegmentsIndexStart, scanIntersections, totalIntersections, scanHeight);
+__global__ void calculateScanIntersections(float* iscx, float* iscy, float* iscl, float* numScanPointsPerSegment, float* intersectionSegmentsIndexStart, float* scanIntersections, const int totalIntersections, const float scanHeight)
+{
+    // TODO: Needs outer loop, gtid != scanLineNumber
+
+    // TODO: I believe we could just not concern ourselves with perfectly horizontal lines, but this is not yet confirmed
+    int gtid = blockIdx.x * blockDim.x + threadIdx.x;
+    if(gtid < totalIntersections) {
+        int numScanPoints = numScanPointsPerSegment[gtid];
+        int startIndex =  intersectionSegmentsIndexStart[gtid];
+        float x0 = iscx[gtid*2];
+        float x1 = iscx[gtid*2+1];
+        float y0 = iscy[gtid*2];
+        float y1 = iscy[gtid*2+1];
+        int scanIntersectionIndex; float curY;
+        for(int i=0; i < numScanPoints; i++) {
+            scanIntersectionIndex = i+startIndex;
+            curY = y0 + i * scanHeight;
+            scanIntersections[scanIntersectionIndex] = getXIntersection2D(curY, x0, x1, y0, y1);
+        }
+    }
+}
+
 // simple routine to print contents of a vector
 template <typename Vector>
 void print_vector(const std::string& name, const Vector& v)
@@ -305,17 +335,11 @@ int main(int argc, char* argv[]) {
     float*  z_p = thrust::raw_pointer_cast( &dz[0] );
     layersInEachTriangle<<<2, 8>>>(z_p, layersInTris_p, n, layerHeight);
 
-    //print_vector("layersInTris", layersInTris);
-
     thrust::device_vector<int> intersectionSegmentsIndexStart(n, 0);
     thrust::inclusive_scan(layersInTris.begin(), layersInTris.end(), intersectionSegmentsIndexStart.begin());
 
-    //print_vector("intersectionSegmentsIndexStart", intersectionSegmentsIndexStart);
-
     // Might want to do this asyncronously? Could be a costly operation
     int totalIntersections = intersectionSegmentsIndexStart[intersectionSegmentsIndexStart.size()-1];
-
-    //printf("totalIntersections: %d\n", totalIntersections);
 
     // Intersection segment coordinate arrays
     thrust::device_vector<float> iscx(totalIntersections*2, 0);
@@ -342,8 +366,8 @@ int main(int argc, char* argv[]) {
     thrust::device_vector<float> iscl2(totalIntersections*2, 0);
     thrust::copy(iscl.begin(), iscl.end(), iscl2.begin());
 
-    //thrust::stable_sort_by_key(thrust::device, iscx.begin(), iscx.end(), iscl.begin());
-    //thrust::stable_sort_by_key(thrust::device, iscy.begin(), iscy.end(), iscl2.begin());
+    // TODO: A custom implementation of sort by key here would allow us to avoid copying
+    // A zip iterator might also do the trick
     thrust::stable_sort_by_key(thrust::device, iscl.begin(), iscl.end(), iscx.begin());
     thrust::stable_sort_by_key(thrust::device, iscl2.begin(), iscl2.end(), iscy.begin());
 
@@ -356,15 +380,23 @@ int main(int argc, char* argv[]) {
     print_vector("iscy", iscy);
     print_vector("iscl", iscl);
 
+    // PART 2: Linear scan of layer planes
+    // We begin with our list of segment points representing a set of unordered boundaries
+
     thrust::device_vector<float> scanPointsPerSegment(totalIntersections, 0);
     float* scanPointsPerSegment_p = thrust::raw_pointer_cast( &scanPointsPerSegment[0] );
     calculateScanPointsPerSegment<<<2, 32>>>(iscy_p, scanPointsPerSegment_p, scanHeight, totalIntersections); // Gotta get the total intersections
     print_vector("scanPointsPerSegment", scanPointsPerSegment);
 
+    // TODO: It may make sense here to sort boundary lines by scanPointsPerSegment in order to make sure that the smallest
+    // lines (lines with least iterations required) get done on the same warp. This would also allow for the smallest
+    // warps to pick up larger warps at the end quicker once the external loop is added
 
-    // PART 2: Linear scan of layer planes
-    // We begin with our list of segment points representing an unordered boundary
-    //
+    // Use
+    thrust::device_vector<int> scanIntersectionIndexStarts(n, 0);
+    thrust::inclusive_scan(scanPointsPerSegment.begin(), scanPointsPerSegment.end(), intersectionSegmentsIndexStart.begin());
+
+    calculateScanIntersections<<<2, 32>>>(iscx, iscy, iscl, numScanPointsPerSegment, intersectionSegmentsIndexStart, scanIntersections, totalIntersections, scanHeight);
 
     // Finish timing
     cudaEventRecord(stopEvent_inc,0);  //ending timing for inclusive
@@ -373,8 +405,10 @@ int main(int argc, char* argv[]) {
 
     // END MY CODE
 
-    //printf("%d\n%f\n%f\n\n",N,cuda_out[N-1],time);
+    // TODO: Unroll loops
+    // TODO: Use optized operations in cuda code where possible
 
+    //TODO: Free all resources
     //free resources
     //free(in); free(out); free(cuda_out);
     return 0;
