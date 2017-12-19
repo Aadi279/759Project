@@ -15,6 +15,8 @@
 #include <thrust/sort.h>
 #include <thrust/count.h>
 #include <thrust/functional.h>
+#include <thrust/iterator/zip_iterator.h>
+#include <thrust/tuple.h>
 
 /**
  * Generates an array of ints representing the height (in number of layers) which each triangle spans
@@ -287,6 +289,30 @@ __global__ void calculateScanIntersections(float* iscx, float* iscy, float* iscl
     }
 }
 
+typedef thrust::tuple<thrust::device_vector<float>::iterator, thrust::device_vector<float>::iterator, thrust::device_vector<int>::iterator> IteratorTupleXYL;
+typedef thrust::tuple<float, float, int> TupleXYL;
+typedef thrust::zip_iterator<IteratorTupleXYL> ZipXYL;
+
+struct xyl_predicate
+{
+    __device__ bool operator()(TupleXYL xyl0, TupleXYL xyl1){
+        if(thrust::get<2>(xyl0) == thrust::get<2>(xyl1)) {
+            if(thrust::get<1>(xyl0) == thrust::get<1>(xyl1)) {
+                return thrust::get<0>(xyl0) <= thrust::get<0>(xyl1);
+            }
+
+                // If same layer, different scan line, sort higher scan first
+            else {
+                return thrust::get<1>(xyl0) < thrust::get<1>(xyl1);
+            }
+        }
+            // If not on the same layer, sort lower layer first
+        else {
+            return thrust::get<2>(xyl0) < thrust::get<2>(xyl1);
+        }
+    }
+};
+
 // simple routine to print contents of a vector
 template <typename Vector>
 void print_vector(const std::string& name, const Vector& v)
@@ -430,18 +456,23 @@ int main(int argc, char* argv[]) {
     int* scanIntersectionIndexStart_p = thrust::raw_pointer_cast( &scanIntersectionIndexStart[0] );
 
 
-//__global__ void calculateScanIntersections(float* iscx, float* iscy, float* iscl, int* numScanPointsPerSegment, int* intersectionSegmentsIndexStart, float* scanIntersections_x, float* scanIntersections_y, const int totalIntersections, const float scanHeight)
-
     calculateScanIntersections<<<2, 32>>>(iscx_p, iscy_p, iscl_p, scanPointsPerSegment_p, SIx_p, SIy_p, SIl_p, scanIntersectionIndexStart_p, totalIntersections, scanHeight);
 
     print_vector("SIx", SIx);
     print_vector("SIy", SIy);
     print_vector("SIl", SIl);
 
-    thrust::sort
+    // Sort such that points on the same layer are grouped, within that, points on the same scanline are grouped, and within THAT points are grouped by x coordinate
+    thrust::sort(thrust::make_zip_iterator(thrust::make_tuple(SIx.begin(), SIy.begin(), SIl.begin())),
+                 thrust::make_zip_iterator(thrust::make_tuple(SIx.end(), SIy.end(), SIl.end())),
+                 xyl_predicate());
+
+    print_vector("SIx", SIx);
+    print_vector("SIy", SIy);
+    print_vector("SIl", SIl);
 
     // Finish timing
-            cudaEventRecord(stopEvent_inc,0);  //ending timing for inclusive
+    cudaEventRecord(stopEvent_inc,0);  //ending timing for inclusive
     cudaEventSynchronize(stopEvent_inc);
     cudaEventElapsedTime(&time, startEvent_inc, stopEvent_inc);
 
