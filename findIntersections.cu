@@ -180,12 +180,6 @@ __global__ void findContourSegmentsForEachTriangle(float* xs, float* ys, float* 
 
         // Iterate through layers
         int layer; float zp;
-        float x_r;
-        float y_r;
-        bool non_intersecting;
-        bool parallel;
-
-        int segmentOffset;
         int si=localStartIndexInSegments;
 
         char pointsOnLayerPlane;
@@ -524,8 +518,6 @@ int main(int argc, char* argv[]) {
     auto newEnd = thrust::unique(thrust::device, thrust::make_zip_iterator(thrust::make_tuple(SIx.begin(), SIy.begin(), SIl.begin())),
                                  thrust::make_zip_iterator(thrust::make_tuple(SIx.end(), SIy.end(), SIl.end())),
                                  predicate);
-    //thrust::device_vector<float>::iterator newEnd = thrust::unique(SIx.begin(),
-    //SIx.end());
 
     auto endTuple = newEnd.get_iterator_tuple();
     SIx.erase( thrust::get<0>( endTuple ), SIx.end() );
