@@ -17,6 +17,7 @@
 #include <thrust/functional.h>
 #include <thrust/iterator/zip_iterator.h>
 #include <thrust/tuple.h>
+#include <thrust/unique.h>
 
 /**
  * Generates an array of ints representing the height (in number of layers) which each triangle spans
@@ -313,6 +314,13 @@ struct xyl_predicate
     }
 };
 
+struct xyl_eq
+{
+    __device__ bool operator()(TupleXYL xyl0, TupleXYL xyl1){
+        return (thrust::get<2>(xyl0) == thrust::get<2>(xyl1)) && (thrust::get<1>(xyl0) == thrust::get<1>(xyl1)) && (thrust::get<0>(xyl0) == thrust::get<0>(xyl1));
+    }
+};
+
 // simple routine to print contents of a vector
 template <typename Vector>
 void print_vector(const std::string& name, const Vector& v)
@@ -346,7 +354,7 @@ int main(int argc, char* argv[]) {
     //float z[N] = {0., 2., 2.,   0., 2., 2.,   0., 2., 2.};
 
     const float layerHeight = 1.;
-    const float scanHeight = 1.;
+    const float scanHeight = .5;
     float x[N] = {0., 0., 0.,   0., 0., 2.,   0., 0., 2.,   0., 0., 2.,};
     float y[N] = {0., 2., 0.,   0., 0., 0.,   0., 2., 0.,   0., 2., 0.,};
     float z[N] = {0., 2., 4.,   0., 4., 2.,   0., 2., 2.,   4., 2., 2.,};
@@ -466,6 +474,25 @@ int main(int argc, char* argv[]) {
     thrust::sort(thrust::make_zip_iterator(thrust::make_tuple(SIx.begin(), SIy.begin(), SIl.begin())),
                  thrust::make_zip_iterator(thrust::make_tuple(SIx.end(), SIy.end(), SIl.end())),
                  xyl_predicate());
+
+    print_vector("SIx", SIx);
+    print_vector("SIy", SIy);
+    print_vector("SIl", SIl);
+
+    // Remove all duplicate points
+    xyl_eq predicate;
+
+    // Would be great if this was statically typed... For some reason I'm getting an errro when I type it as ZipXYL
+    auto newEnd = thrust::unique(thrust::device, thrust::make_zip_iterator(thrust::make_tuple(SIx.begin(), SIy.begin(), SIl.begin())),
+                                 thrust::make_zip_iterator(thrust::make_tuple(SIx.end(), SIy.end(), SIl.end())),
+                                 predicate);
+    //thrust::device_vector<float>::iterator newEnd = thrust::unique(SIx.begin(),
+    //SIx.end());
+
+    auto endTuple = newEnd.get_iterator_tuple();
+    SIx.erase( thrust::get<0>( endTuple ), SIx.end() );
+    SIy.erase( thrust::get<1>( endTuple ), SIy.end() );
+    SIl.erase( thrust::get<2>( endTuple ), SIl.end() );
 
     print_vector("SIx", SIx);
     print_vector("SIy", SIy);
