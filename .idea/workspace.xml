@@ -11,7 +11,6 @@
   <component name="ChangeListManager">
     <list default="true" id="fd1748ae-5519-4b39-b326-58e05860111f" name="Default" comment="">
       <change type="MODIFICATION" beforePath="$PROJECT_DIR$/.idea/workspace.xml" afterPath="$PROJECT_DIR$/.idea/workspace.xml" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/findIntersections.cu" afterPath="$PROJECT_DIR$/findIntersections.cu" />
     </list>
     <ignored path="HPC_project.iws" />
     <ignored path=".idea/workspace.xml" />
@@ -66,7 +65,7 @@
       <file leaf-file-name="findIntersections.cu" pinned="false" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/findIntersections.cu">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="660">
+            <state relative-caret-position="604">
               <caret line="449" column="1" lean-forward="false" selection-start-line="449" selection-start-column="1" selection-end-line="449" selection-end-column="1" />
               <folding>
                 <element signature="e#3196#8102#0" expanded="false" />
@@ -195,7 +194,7 @@
     <servers />
   </component>
   <component name="TimeTrackingManager">
-    <option name="totallyTimeSpent" value="23302000" />
+    <option name="totallyTimeSpent" value="23934000" />
   </component>
   <component name="ToolWindowManager">
     <frame x="0" y="22" width="1680" height="982" extended-state="6" />
@@ -697,7 +696,7 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/findIntersections.cu">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="660">
+        <state relative-caret-position="604">
           <caret line="449" column="1" lean-forward="false" selection-start-line="449" selection-start-column="1" selection-end-line="449" selection-end-column="1" />
           <folding>
             <element signature="e#3196#8102#0" expanded="false" />

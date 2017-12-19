@@ -250,7 +250,7 @@ __device__ float getXIntersection2D(float atY, float x0, float x1, float y0, flo
     return t * (x1 - x0) + x0;
 }
 
-__global__ void calculateScanIntersections(float* iscx, float* iscy, float* iscl, int* numScanPointsPerSegment, float* scanIntersections_x, float* scanIntersections_y, int* intersectionSegmentsIndexStart, const int totalIntersections, const float scanHeight)
+__global__ void calculateScanIntersections(float* iscx, float* iscy, float* iscl, int* numScanPointsPerSegment, float* scanIntersections_x, float* scanIntersections_y, float* scanIntersections_l, int* intersectionSegmentsIndexStart, const int totalIntersections, const float scanHeight)
 {
     // TODO: Needs outer loop, gtid != scanLineNumber
 
@@ -282,6 +282,7 @@ __global__ void calculateScanIntersections(float* iscx, float* iscy, float* iscl
             resx = x0 + (curY - y0) / (y1-y0) * (x1 - x0);
             scanIntersections_x[scanIntersectionIndex] = resx;
             scanIntersections_y[scanIntersectionIndex] = curY;
+            scanIntersections_l[scanIntersectionIndex] = iscl[gtid*2];
         }
     }
 }
@@ -319,7 +320,7 @@ int main(int argc, char* argv[]) {
     //float z[N] = {0., 2., 2.,   0., 2., 2.,   0., 2., 2.};
 
     const float layerHeight = 1.;
-    const float scanHeight = .5;
+    const float scanHeight = 1.;
     float x[N] = {0., 0., 0.,   0., 0., 2.,   0., 0., 2.,   0., 0., 2.,};
     float y[N] = {0., 2., 0.,   0., 0., 0.,   0., 2., 0.,   0., 2., 0.,};
     float z[N] = {0., 2., 4.,   0., 4., 2.,   0., 2., 2.,   4., 2., 2.,};
@@ -386,6 +387,7 @@ int main(int argc, char* argv[]) {
 
     // TODO: A custom implementation of sort by key here would allow us to avoid copying
     // A zip iterator might also do the trick
+    // TODO: It may not even be necessary to sort here
     thrust::stable_sort_by_key(thrust::device, iscl.begin(), iscl.end(), iscx.begin());
     thrust::stable_sort_by_key(thrust::device, iscl2.begin(), iscl2.end(), iscy.begin());
 
@@ -421,20 +423,25 @@ int main(int argc, char* argv[]) {
 
     thrust::device_vector<float> SIx(totalScanPoints, 0); // Scan intersections
     thrust::device_vector<float> SIy(totalScanPoints, 0); // Scan intersections
+    thrust::device_vector<float> SIl(totalScanPoints, 0); // Scan intersections
     float* SIx_p = thrust::raw_pointer_cast( &SIx[0] );
     float* SIy_p = thrust::raw_pointer_cast( &SIy[0] );
+    float* SIl_p = thrust::raw_pointer_cast( &SIl[0] );
     int* scanIntersectionIndexStart_p = thrust::raw_pointer_cast( &scanIntersectionIndexStart[0] );
 
 
 //__global__ void calculateScanIntersections(float* iscx, float* iscy, float* iscl, int* numScanPointsPerSegment, int* intersectionSegmentsIndexStart, float* scanIntersections_x, float* scanIntersections_y, const int totalIntersections, const float scanHeight)
 
-    calculateScanIntersections<<<2, 32>>>(iscx_p, iscy_p, iscl_p, scanPointsPerSegment_p, SIx_p, SIy_p, scanIntersectionIndexStart_p, totalIntersections, scanHeight);
+    calculateScanIntersections<<<2, 32>>>(iscx_p, iscy_p, iscl_p, scanPointsPerSegment_p, SIx_p, SIy_p, SIl_p, scanIntersectionIndexStart_p, totalIntersections, scanHeight);
 
     print_vector("SIx", SIx);
     print_vector("SIy", SIy);
+    print_vector("SIl", SIl);
+
+    thrust::sort
 
     // Finish timing
-    cudaEventRecord(stopEvent_inc,0);  //ending timing for inclusive
+            cudaEventRecord(stopEvent_inc,0);  //ending timing for inclusive
     cudaEventSynchronize(stopEvent_inc);
     cudaEventElapsedTime(&time, startEvent_inc, stopEvent_inc);
 
