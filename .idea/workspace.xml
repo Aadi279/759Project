@@ -65,10 +65,10 @@
       <file leaf-file-name="findIntersections.cu" pinned="false" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/findIntersections.cu">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="506">
-              <caret line="487" column="0" lean-forward="true" selection-start-line="487" selection-start-column="0" selection-end-line="487" selection-end-column="0" />
+            <state relative-caret-position="510">
+              <caret line="236" column="37" lean-forward="false" selection-start-line="0" selection-start-column="0" selection-end-line="554" selection-end-column="1" />
               <folding>
-                <element signature="e#11795#11812#0" expanded="true" />
+                <element signature="e#14553#14570#0" expanded="true" />
               </folding>
             </state>
           </provider>
@@ -102,11 +102,14 @@
       <find>startIndicesInSegments</find>
       <find>x</find>
       <find>calculateInters</find>
+      <find>addToSegments</find>
     </findStrings>
     <replaceStrings>
       <replace>$1</replace>
       <replace>intersectionSegmentsIndexStart</replace>
       <replace>y</replace>
+      <replace>updateContourSegmentsIfIntersects</replace>
+      <replace>findContourSegmentsForEachTriangle</replace>
     </replaceStrings>
   </component>
   <component name="Git.Settings">
@@ -193,7 +196,7 @@
     <servers />
   </component>
   <component name="TimeTrackingManager">
-    <option name="totallyTimeSpent" value="25905000" />
+    <option name="totallyTimeSpent" value="28862000" />
   </component>
   <component name="ToolWindowManager">
     <frame x="0" y="22" width="1680" height="982" extended-state="6" />
@@ -301,7 +304,7 @@
         <state relative-caret-position="4340">
           <caret line="310" column="1" lean-forward="false" selection-start-line="310" selection-start-column="1" selection-end-line="310" selection-end-column="1" />
           <folding>
-            <element signature="e#11795#11812#0" expanded="true" />
+            <element signature="e#14553#14570#0" expanded="true" />
           </folding>
         </state>
       </provider>
@@ -337,7 +340,7 @@
         <state relative-caret-position="4165">
           <caret line="250" column="0" lean-forward="false" selection-start-line="250" selection-start-column="0" selection-end-line="250" selection-end-column="0" />
           <folding>
-            <element signature="e#11795#11812#0" expanded="true" />
+            <element signature="e#14553#14570#0" expanded="true" />
           </folding>
         </state>
       </provider>
@@ -381,7 +384,7 @@
         <state relative-caret-position="4250">
           <caret line="250" column="0" lean-forward="false" selection-start-line="250" selection-start-column="0" selection-end-line="250" selection-end-column="0" />
           <folding>
-            <element signature="e#11795#11812#0" expanded="true" />
+            <element signature="e#14553#14570#0" expanded="true" />
           </folding>
         </state>
       </provider>
@@ -449,7 +452,7 @@
         <state relative-caret-position="4165">
           <caret line="250" column="0" lean-forward="true" selection-start-line="250" selection-start-column="0" selection-end-line="250" selection-end-column="0" />
           <folding>
-            <element signature="e#11795#11812#0" expanded="true" />
+            <element signature="e#14553#14570#0" expanded="true" />
           </folding>
         </state>
       </provider>
@@ -485,7 +488,7 @@
         <state relative-caret-position="4199">
           <caret line="247" column="30" lean-forward="false" selection-start-line="247" selection-start-column="30" selection-end-line="247" selection-end-column="30" />
           <folding>
-            <element signature="e#11795#11812#0" expanded="true" />
+            <element signature="e#14553#14570#0" expanded="true" />
           </folding>
         </state>
       </provider>
@@ -553,7 +556,7 @@
         <state relative-caret-position="4199">
           <caret line="247" column="30" lean-forward="false" selection-start-line="247" selection-start-column="30" selection-end-line="247" selection-end-column="30" />
           <folding>
-            <element signature="e#11795#11812#0" expanded="true" />
+            <element signature="e#14553#14570#0" expanded="true" />
           </folding>
         </state>
       </provider>
@@ -622,7 +625,7 @@
         <state relative-caret-position="120">
           <caret line="96" column="65" lean-forward="false" selection-start-line="96" selection-start-column="65" selection-end-line="96" selection-end-column="65" />
           <folding>
-            <element signature="e#11795#11812#0" expanded="true" />
+            <element signature="e#14553#14570#0" expanded="true" />
           </folding>
         </state>
       </provider>
@@ -688,10 +691,10 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/findIntersections.cu">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="506">
-          <caret line="487" column="0" lean-forward="true" selection-start-line="487" selection-start-column="0" selection-end-line="487" selection-end-column="0" />
+        <state relative-caret-position="510">
+          <caret line="236" column="37" lean-forward="false" selection-start-line="0" selection-start-column="0" selection-end-line="554" selection-end-column="1" />
           <folding>
-            <element signature="e#11795#11812#0" expanded="true" />
+            <element signature="e#14553#14570#0" expanded="true" />
           </folding>
         </state>
       </provider>

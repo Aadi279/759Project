@@ -1,14 +1,10 @@
 #include <iostream>
 #include <iomanip>
 #include <iterator>
-
 #include <stdio.h>
 #include <stdlib.h>
-
 #include <cuda.h>
-
 #include <math.h>
-
 #include <thrust/host_vector.h>
 #include <thrust/device_vector.h>
 #include <thrust/scan.h>
@@ -18,6 +14,9 @@
 #include <thrust/iterator/zip_iterator.h>
 #include <thrust/tuple.h>
 #include <thrust/unique.h>
+
+//TODO: It would be great to split this into separate files, compile times are getting a bit long and it's
+// more difficult to work with on Euler as a huge piece like this.
 
 /**
  * Generates an array of ints representing the height (in number of layers) which each triangle spans
@@ -40,18 +39,19 @@ __global__ void layersInEachTriangle(float* zs, int* layersInTris, int numberOfT
         layersInTris[gtid] = layersContained;
     }
 
-    //TODO: Handle boundary case of triangles which intersect layer at a point or are completely coplanar
+    //TODO: Handle boundary case of triangles which intersect layer at a point or are completely coplanar (This might be comprehensive now, test!)
 }
 
 /**
+ * Finds the intersection between a triangle and a plane
  *
- * @param x0
- * @param x1
- * @param y0
- * @param y1
- * @param z0
- * @param z1
- * @param zp z of the plane
+ * @param x0 x coordinate of the current triangle edge's startpoint
+ * @param x1 x coordinate of the current triangle edge's endpoint
+ * @param y0 y coordinate of the current triangle edge's startpoint
+ * @param y1 y coordinate of the current triangle edge's endpoint
+ * @param z0 z coordinate of the current triangle edge's startpoint
+ * @param z1 z coordinate of the current triangle edge's endpoint
+ * @param zp z coordinate of the plane
  * @param x_r result of the intersection
  * @param y_r result of the intersection
  * @return
@@ -62,9 +62,6 @@ __device__ void get_intersection(float x0, float x1,
                                  float &x_r, float &y_r,
                                  bool &parallel,
                                  bool &non_intersecting) {
-
-    //printf("Getting intersection...\nx0:%f\nx1:%f\ny0:%f\ny1:%f\nz0:%f\nz1:%f\nzp:%f\n", x0, x1, y0, y1, z0, z1, zp);
-
     //TODO: Put this check outside and handle by putting both points into the segment list. This case represents a planar line segment
     float denom = (z1 - z0);
 
@@ -83,18 +80,33 @@ __device__ void get_intersection(float x0, float x1,
 
     if(t < 0 || t > 1) {
         non_intersecting = true;
-        //printf("t=%f, x=%f, y=%f, non_intersecting=%d\n", t, *x_r, *y_r, *non_intersecting);
         return;
     }
 
     x_r = x0 + t * (x1 - x0);
     y_r = y0 + t * (y1 - y0);
-
-    //printf("t=%f, x=%f, y=%f, non_intersecting=%d\n", t, *x_r, *y_r, *non_intersecting);
     return;
 }
 
-__device__ void addToSegments(const float x0, const float x1, const float y0, const float y1, const float z0, const float z1, int layer, const float zp,  int &si, float* seg_x, float* seg_y, float* seg_l) {
+/**
+ * Given a triangle edge and a layer spec, find the intersection between the edge and the layer if there is one
+ * and place its coordinates into the boundary segments arrays
+ *
+ * @param x0 x coordinate of the current triangle edge's startpoint
+ * @param x1 x coordinate of the current triangle edge's endpoint
+ * @param y0 y coordinate of the current triangle edge's startpoint
+ * @param y1 y coordinate of the current triangle edge's endpoint
+ * @param z0 z coordinate of the current triangle edge's startpoint
+ * @param z1 z coordinate of the current triangle edge's endpoint
+ * @param layer Integer index of the current layer
+ * @param zp Float z coordinate of the currrent layer
+ * @param si Current index within each of the boundary segment arrays
+ * @param seg_x List of boundary segment x coordinates (stride 2)
+ * @param seg_y List of boundary segment y coordinates (stride 2)
+ * @param seg_l List of boundary segment z coordinates (stride 2)
+ * @return
+ */
+__device__ void updateContourSegmentsIfIntersects(const float x0, const float x1, const float y0, const float y1, const float z0, const float z1, int layer, const float zp,  int &si, float* seg_x, float* seg_y, float* seg_l) {
     float x_r; float y_r;
     bool parallel; bool non_intersecting;
     get_intersection(x0, x1, y0, y1, z0, z1, zp, x_r, y_r, parallel, non_intersecting);
@@ -106,14 +118,40 @@ __device__ void addToSegments(const float x0, const float x1, const float y0, co
     }
 }
 
+/**
+ * Returns true if the 2nd argument is between the exterior arguments
+ * @param z0
+ * @param z1
+ * @param z2
+ * @return
+ */
 __device__ bool isMiddle(const float z0, const float z1, const float z2) {
     return ((z0 < z1) && (z1 < z2)) || ((z2 < z1) && (z1 < z0));
 }
 
-// TODO: A couple ways this could be optimized:
-// - Processing tris with points lying on the layerplane in a totally separate kernel so that "normal" tris don't have to go through all these contingencies everytime for boundary conditions
-// - Sorting tris by number of layers spanned. This could allow us to process "short" tris on the same block as each other, having roughly the same loop size allows for smaller idle time
-__global__ void calculateIntersections(float* xs, float* ys, float* zs, int* layersInTri, int* startIndexInSegments, float* seg_x, float* seg_y, float* seg_l, const float lH, const int n) {
+/**
+ * Iterate through every triangle, find intersections for each triangle with the layers they span
+ * Populate the contour segment arrays with all found intersections
+ *
+ * Note that the resulting segment coordinate arrays will be unsorted, but the data contained should be interpreted as stride-2
+ * arrays for which the odd-indexed elements represent endpoints and even-indexed elements represent coordinates of startpoints
+ *
+ * @param xs The x coordinates of triangle vertices (stride-3)
+ * @param ys The y coordinates of triangle vertices (stride-3)
+ * @param zs The z coordinates of triangle vertices (stride-3)
+ * @param layersInTri
+ * @param startIndexInSegments
+ * @param seg_x The boundary array x coordinate
+ * @param seg_y The boundary array y coordinate
+ * @param seg_l The boundary array layer coordinate
+ * @param lH The distance between layers
+ * @param n The total number of triangles to be analyzed
+ * @return
+ */
+__global__ void findContourSegmentsForEachTriangle(float* xs, float* ys, float* zs, int* layersInTri, int* startIndexInSegments, float* seg_x, float* seg_y, float* seg_l, const float lH, const int n) {
+    // TODO: !IMPORTANT: A couple ways this could be optimized:
+    // - Processing tris with points lying on the layerplane in a totally separate kernel so that "normal" tris don't have to go through all these contingencies every time for boundary conditions
+    // - Sorting tris by number of layers spanned. This could allow us to process "short" tris on the same block as each other, having roughly the same loop size allows for smaller idle time
     int gtid = blockIdx.x * blockDim.x + threadIdx.x;
 
     //TODO: Needs an external loop for `triIndex` instead of using gtid directly
@@ -170,9 +208,9 @@ __global__ void calculateIntersections(float* xs, float* ys, float* zs, int* lay
                 // Honestly, I think the thing to do would be to just check whether the triangle
                 // has any points on this layer in a separate handler
 
-                addToSegments(x0, x1, y0, y1, z0, z1, layer, zp, si, seg_x, seg_y, seg_l);
-                addToSegments(x1, x2, y1, y2, z1, z2, layer, zp, si, seg_x, seg_y, seg_l);
-                addToSegments(x2, x0, y2, y0, z2, z0, layer, zp, si, seg_x, seg_y, seg_l);
+                updateContourSegmentsIfIntersects(x0, x1, y0, y1, z0, z1, layer, zp, si, seg_x, seg_y, seg_l);
+                updateContourSegmentsIfIntersects(x1, x2, y1, y2, z1, z2, layer, zp, si, seg_x, seg_y, seg_l);
+                updateContourSegmentsIfIntersects(x2, x0, y2, y0, z2, z0, layer, zp, si, seg_x, seg_y, seg_l);
 
                 // TODO: Handle boundary cases for planar triangles and tangentially intersecting triangles
             } else if(pointsOnLayerPlane < 3) {
@@ -184,7 +222,7 @@ __global__ void calculateIntersections(float* xs, float* ys, float* zs, int* lay
                     if(pointsOnLayerPlane == 1) {
                         if(isMiddle(z1,z0,z2)){
                             // TODO: Have to add a check here to see if it's the middle point which sits on the edge
-                            addToSegments(x1, x2, y1, y2, z1, z2, layer, zp, si, seg_x, seg_y, seg_l);
+                            updateContourSegmentsIfIntersects(x1, x2, y1, y2, z1, z2, layer, zp, si, seg_x, seg_y, seg_l);
                         } else {
                             seg_x[si] = x0;
                             seg_y[si] = y0;
@@ -200,7 +238,7 @@ __global__ void calculateIntersections(float* xs, float* ys, float* zs, int* lay
                     si++;
                     if(pointsOnLayerPlane == 1) {
                         if(isMiddle(z0, z1, z2)) {
-                            addToSegments(x2, x0, y2, y0, z2, z0, layer, zp, si, seg_x, seg_y, seg_l);
+                            updateContourSegmentsIfIntersects(x2, x0, y2, y0, z2, z0, layer, zp, si, seg_x, seg_y, seg_l);
                         } else {
                             seg_x[si] = x1;
                             seg_y[si] = y1;
@@ -216,7 +254,7 @@ __global__ void calculateIntersections(float* xs, float* ys, float* zs, int* lay
                     si++;
                     if(pointsOnLayerPlane == 1) {
                         if(isMiddle(z0, z1, z2)) {
-                            addToSegments(x0, x2, y0, y2, z0, z2, layer, zp, si, seg_x, seg_y, seg_l);
+                            updateContourSegmentsIfIntersects(x0, x2, y0, y2, z0, z2, layer, zp, si, seg_x, seg_y, seg_l);
                         } else {
                             seg_x[si] = x2;
                             seg_y[si] = y2;
@@ -405,7 +443,7 @@ int main(int argc, char* argv[]) {
     float* y_p = thrust::raw_pointer_cast( &dy[0] );
     int* intersectionSegmentsIndexStart_p = thrust::raw_pointer_cast( &intersectionSegmentsIndexStart[0]);
 
-    calculateIntersections<<<2, 8>>>(x_p, y_p, z_p, layersInTris_p, intersectionSegmentsIndexStart_p, iscx_p, iscy_p, iscl_p, layerHeight, n);
+    findContourSegmentsForEachTriangle<<<2, 8>>>(x_p, y_p, z_p, layersInTris_p, intersectionSegmentsIndexStart_p, iscx_p, iscy_p, iscl_p, layerHeight, n);
 
     printf("totalIntersections: %d\n", totalIntersections);
     print_vector("layersInTris", layersInTris);
@@ -505,10 +543,12 @@ int main(int argc, char* argv[]) {
 
     // END MY CODE
 
-    // TODO: Unroll loops
-    // TODO: Use optimized operations in cuda code where possible
+    // TODO: Unroll loops *using pragmas* to keep code clean.
+    // TODO: Use optimized operations in cuda code where possible (i.e. `__add`
 
-    //TODO: Free all resources
+    // TODO: Free all resources *as soon as we can*
+    // We might hit memory bounds on larger models
+
     //free resources
     //free(in); free(out); free(cuda_out);
     return 0;
