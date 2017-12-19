@@ -106,7 +106,7 @@ __device__ void get_intersection(float x0, float x1,
  * @param seg_l List of boundary segment z coordinates (stride 2)
  * @return
  */
-__device__ void updateContourSegmentsIfIntersects(const float x0, const float x1, const float y0, const float y1, const float z0, const float z1, int layer, const float zp,  int &si, float* seg_x, float* seg_y, float* seg_l) {
+__device__ void updateContourSegmentsIfIntersects(const float x0, const float x1, const float y0, const float y1, const float z0, const float z1, int layer, const float zp,  int &si, float* seg_x, float* seg_y, int* seg_l) {
     float x_r; float y_r;
     bool parallel; bool non_intersecting;
     get_intersection(x0, x1, y0, y1, z0, z1, zp, x_r, y_r, parallel, non_intersecting);
@@ -148,7 +148,7 @@ __device__ bool isMiddle(const float z0, const float z1, const float z2) {
  * @param n The total number of triangles to be analyzed
  * @return
  */
-__global__ void findContourSegmentsForEachTriangle(float* xs, float* ys, float* zs, int* layersInTri, int* startIndexInSegments, float* seg_x, float* seg_y, float* seg_l, const float lH, const int n) {
+__global__ void findContourSegmentsForEachTriangle(float* xs, float* ys, float* zs, int* layersInTri, int* startIndexInSegments, float* seg_x, float* seg_y, int* seg_l, const float lH, const int n) {
     // TODO: !IMPORTANT: A couple ways this could be optimized:
     // - Processing tris with points lying on the layerplane in a totally separate kernel so that "normal" tris don't have to go through all these contingencies every time for boundary conditions
     // - Sorting tris by number of layers spanned. This could allow us to process "short" tris on the same block as each other, having roughly the same loop size allows for smaller idle time
@@ -285,7 +285,7 @@ __device__ float getXIntersection2D(float atY, float x0, float x1, float y0, flo
     return t * (x1 - x0) + x0;
 }
 
-__global__ void calculateScanIntersections(float* iscx, float* iscy, float* iscl, int* numScanPointsPerSegment, float* scanIntersections_x, float* scanIntersections_y, float* scanIntersections_l, int* intersectionSegmentsIndexStart, const int totalIntersections, const float scanHeight)
+__global__ void calculateScanIntersections(float* iscx, float* iscy, int* iscl, int* numScanPointsPerSegment, float* scanIntersections_x, float* scanIntersections_y, int* scanIntersections_l, int* intersectionSegmentsIndexStart, const int totalIntersections, const float scanHeight)
 {
     // TODO: Needs outer loop, gtid != scanLineNumber
 
@@ -428,11 +428,11 @@ int main(int argc, char* argv[]) {
     // Intersection segment coordinate arrays
     thrust::device_vector<float> iscx(totalIntersections*2, 0);
     thrust::device_vector<float> iscy(totalIntersections*2, 0);
-    thrust::device_vector<float> iscl(totalIntersections*2, 0);
+    thrust::device_vector<int> iscl(totalIntersections*2, 0);
     float* iscx_p = thrust::raw_pointer_cast( &iscx[0] );
     float* iscy_p = thrust::raw_pointer_cast( &iscy[0] );
     // TODO: Should probably convert to int everywhere
-    float* iscl_p = thrust::raw_pointer_cast( &iscl[0] );
+    int* iscl_p = thrust::raw_pointer_cast( &iscl[0] );
     float* x_p = thrust::raw_pointer_cast( &dx[0] );
     float* y_p = thrust::raw_pointer_cast( &dy[0] );
     int* intersectionSegmentsIndexStart_p = thrust::raw_pointer_cast( &intersectionSegmentsIndexStart[0]);
@@ -448,7 +448,7 @@ int main(int argc, char* argv[]) {
 
 
     // Copy over our layer vector so that we can use it as a key vector twice for stable_sort_by_key
-    thrust::device_vector<float> iscl2(totalIntersections*2, 0);
+    thrust::device_vector<int> iscl2(totalIntersections*2, 0);
     thrust::copy(iscl.begin(), iscl.end(), iscl2.begin());
 
     // TODO: A custom implementation of sort by key here would allow us to avoid copying
@@ -478,8 +478,6 @@ int main(int argc, char* argv[]) {
     // lines (lines with least iterations required) get done on the same warp. This would also allow for the smallest
     // warps to pick up larger warps at the end quicker once the external loop is added
 
-    // Use
-
     thrust::device_vector<int> scanIntersectionIndexStart(totalIntersections, 0);
     thrust::inclusive_scan(scanPointsPerSegment.begin(), scanPointsPerSegment.end(), scanIntersectionIndexStart.begin());
     int totalScanPoints = scanIntersectionIndexStart[scanIntersectionIndexStart.size()-1];
@@ -489,10 +487,10 @@ int main(int argc, char* argv[]) {
 
     thrust::device_vector<float> SIx(totalScanPoints, 0); // Scan intersections
     thrust::device_vector<float> SIy(totalScanPoints, 0); // Scan intersections
-    thrust::device_vector<float> SIl(totalScanPoints, 0); // Scan intersections
+    thrust::device_vector<int> SIl(totalScanPoints, 0); // Scan intersections
     float* SIx_p = thrust::raw_pointer_cast( &SIx[0] );
     float* SIy_p = thrust::raw_pointer_cast( &SIy[0] );
-    float* SIl_p = thrust::raw_pointer_cast( &SIl[0] );
+    int* SIl_p = thrust::raw_pointer_cast( &SIl[0] );
     int* scanIntersectionIndexStart_p = thrust::raw_pointer_cast( &scanIntersectionIndexStart[0] );
 
 
@@ -514,12 +512,11 @@ int main(int argc, char* argv[]) {
     // Remove all duplicate points
     xyl_eq predicate;
 
-    // Would be great if this was statically typed... For some reason I'm getting an errro when I type it as ZipXYL
-    auto newEnd = thrust::unique(thrust::device, thrust::make_zip_iterator(thrust::make_tuple(SIx.begin(), SIy.begin(), SIl.begin())),
-                                 thrust::make_zip_iterator(thrust::make_tuple(SIx.end(), SIy.end(), SIl.end())),
-                                 predicate);
+    ZipXYL newEnd = thrust::unique(thrust::device, thrust::make_zip_iterator(thrust::make_tuple(SIx.begin(), SIy.begin(), SIl.begin())),
+                                   thrust::make_zip_iterator(thrust::make_tuple(SIx.end(), SIy.end(), SIl.end())),
+                                   predicate);
 
-    auto endTuple = newEnd.get_iterator_tuple();
+    IteratorTupleXYL endTuple = newEnd.get_iterator_tuple();
     SIx.erase( thrust::get<0>( endTuple ), SIx.end() );
     SIy.erase( thrust::get<1>( endTuple ), SIy.end() );
     SIl.erase( thrust::get<2>( endTuple ), SIl.end() );
