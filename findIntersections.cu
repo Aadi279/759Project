@@ -311,10 +311,12 @@ __global__ void calculateScanIntersections(float* iscx, float* iscy, int* iscl, 
         //printf("numscanPoints:%d\n", numScanPoints);
         //printf("totalIntersections:%d\n", totalIntersections);
         for(int i=0; i < numScanPoints; i++) {
+            //printf("gtid:%d, numScanPoints:%d\n", gtid, numScanPoints);
             scanIntersectionIndex = i+startIndex;
             curY = y0 + i * scanHeight;
             //printf("scanIntersectionIndex: %d\n", scanIntersectionIndex);
             resx = x0 + (curY - y0) / (y1-y0) * (x1 - x0);
+            printf("%d: %f, %f, index: %d\n", gtid, resx, curY, scanIntersectionIndex);
             scanIntersections_x[scanIntersectionIndex] = resx;
             scanIntersections_y[scanIntersectionIndex] = curY;
             scanIntersections_l[scanIntersectionIndex] = iscl[gtid*2];
@@ -479,8 +481,8 @@ int main(int argc, char* argv[]) {
     // warps to pick up larger warps at the end quicker once the external loop is added
 
     thrust::device_vector<int> scanIntersectionIndexStart(totalIntersections, 0);
-    thrust::inclusive_scan(scanPointsPerSegment.begin(), scanPointsPerSegment.end(), scanIntersectionIndexStart.begin());
-    int totalScanPoints = scanIntersectionIndexStart[scanIntersectionIndexStart.size()-1];
+    thrust::exclusive_scan(scanPointsPerSegment.begin(), scanPointsPerSegment.end(), scanIntersectionIndexStart.begin());
+    int totalScanPoints = scanIntersectionIndexStart[scanIntersectionIndexStart.size()-1] + scanPointsPerSegment[scanPointsPerSegment.size()-1];
 
     print_vector("scanIntersectionIndexStart", scanIntersectionIndexStart);
 
